@@ -1,0 +1,8 @@
+fastapi
+python-multipart
+uvicorn
+dotenv
+pydantic
+typing
+motor
+
