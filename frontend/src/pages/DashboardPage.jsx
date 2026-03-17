@@ -1,100 +1,183 @@
-import React from "react";
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { Layout } from "../components/Layout";
+import { StatCard } from "../components/StatCard";
+import { SectionCard } from "../components/SectionCard";
+import { StatusBadge } from "../components/StatusBadge";
+import { getDocuments } from "../api/documents";
 
-// Dashboard affichant un aperçu des documents analysés
-// (version mock en attendant la connexion avec le backend)
+const getStatusVariant = (status) => {
+  switch (status) {
+    case "completed":
+      return "success";
+    case "error":
+      return "danger";
+    case "processing":
+      return "info";
+    default:
+      return "warning";
+  }
+};
+
+const getStatusLabel = (status) => {
+  switch (status) {
+    case "completed":
+      return "Terminé";
+    case "error":
+      return "Erreur";
+    case "processing":
+      return "En cours";
+    case "uploaded":
+      return "En attente";
+    default:
+      return status;
+  }
+};
+
 export const DashboardPage = () => {
-  const documents = [
-    {
-      name: "facture_001.pdf",
-      type: "Facture",
-      size: "93 734 octets",
-      status: "Analyse terminée",
-    },
-    {
-      name: "devis_client.jpg",
-      type: "Devis",
-      size: "45 120 octets",
-      status: "Analyse terminée",
-    },
-    {
-      name: "attestation.jpeg",
-      type: "Attestation",
-      size: "28 540 octets",
-      status: "En attente",
-    },
-  ];
+  const [documents, setDocuments] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const fetchDocuments = async () => {
+      try {
+        setLoading(true);
+        setError("");
+        const data = await getDocuments();
+        setDocuments(data);
+      } catch (err) {
+        console.error("Erreur chargement documents:", err);
+        setError("API indisponible.");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchDocuments();
+  }, []);
 
   const totalDocuments = documents.length;
-  const analysedDocuments = documents.filter(
-    (doc) => doc.status === "Analyse terminée"
-  ).length;
-  const pendingDocuments = documents.filter(
-    (doc) => doc.status === "En attente"
-  ).length;
+  const completedDocs = documents.filter((d) => d.status === "completed").length;
+  const pendingDocs = documents.filter((d) => d.status !== "completed" && d.status !== "error").length;
+  const errorDocs = documents.filter((d) => d.status === "error").length;
 
   return (
-    <Layout title="Dashboard" className="items-stretch">
-      <div className="w-full max-w-5xl mx-auto flex flex-col gap-8">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-gray-900 border border-gray-700 rounded-lg p-5">
-            <p className="text-gray-400 text-sm">Documents uploadés</p>
-            <h2 className="text-3xl font-bold mt-2">{totalDocuments}</h2>
+    <Layout
+      title="Dashboard"
+      subtitle="Vue d'ensemble des documents uploadés et de leur état de traitement par la pipeline IA."
+    >
+      <div className="space-y-8">
+        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <StatCard
+            title="Documents totaux"
+            value={totalDocuments}
+            subtitle="Nombre total de documents uploadés."
+            badge="Global"
+          />
+          <StatCard
+            title="Analyses terminées"
+            value={completedDocs}
+            subtitle="Documents traités avec succès par la pipeline."
+            badge="OK"
+            badgeVariant="success"
+          />
+          <StatCard
+            title="En attente"
+            value={pendingDocs}
+            subtitle="Documents en cours de traitement ou en file."
+            badge="En cours"
+            badgeVariant="warning"
+          />
+          <StatCard
+            title="Erreurs"
+            value={errorDocs}
+            subtitle="Documents dont le traitement a échoué."
+            badge="Alerte"
+            badgeVariant="danger"
+          />
+        </section>
+
+        {error && (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            {error}
           </div>
+        )}
 
-          <div className="bg-gray-900 border border-gray-700 rounded-lg p-5">
-            <p className="text-gray-400 text-sm">Analyses terminées</p>
-            <h2 className="text-3xl font-bold mt-2">{analysedDocuments}</h2>
-          </div>
-
-          <div className="bg-gray-900 border border-gray-700 rounded-lg p-5">
-            <p className="text-gray-400 text-sm">En attente</p>
-            <h2 className="text-3xl font-bold mt-2">{pendingDocuments}</h2>
-          </div>
-        </div>
-
-        <div className="bg-gray-900 border border-gray-700 rounded-lg p-6">
-          <h2 className="text-2xl font-semibold mb-4">
-            Historique des documents
-          </h2>
-
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className="border-b border-gray-700 text-left">
-                  <th className="p-3">Nom du document</th>
-                  <th className="p-3">Type</th>
-                  <th className="p-3">Taille</th>
-                  <th className="p-3">Statut</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {documents.map((doc, index) => (
-                  <tr
-                    key={index}
-                    className="border-b border-gray-800 hover:bg-gray-800 transition"
-                  >
-                    <td className="p-3">{doc.name}</td>
-                    <td className="p-3">{doc.type}</td>
-                    <td className="p-3">{doc.size}</td>
-                    <td className="p-3">
-                      <span
-                        className={`px-3 py-1 rounded-full text-sm ${
-                          doc.status === "Analyse terminée"
-                            ? "bg-green-900 text-green-300"
-                            : "bg-yellow-900 text-yellow-300"
-                        }`}
-                      >
-                        {doc.status}
-                      </span>
-                    </td>
+        <SectionCard
+          title="Historique des documents"
+          subtitle="Liste complète des fichiers uploadés et leur progression dans la pipeline."
+          rightElement={
+            <Link
+              to="/upload"
+              className="rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
+            >
+              + Upload
+            </Link>
+          }
+          className="overflow-hidden p-0"
+        >
+          {loading ? (
+            <div className="px-6 py-10 text-center text-slate-500">
+              Chargement des documents...
+            </div>
+          ) : documents.length === 0 ? (
+            <div className="px-6 py-10 text-center text-slate-500">
+              Aucun document.{" "}
+              <Link to="/upload" className="font-semibold text-slate-900 hover:underline">
+                Uploader un fichier
+              </Link>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full border-collapse">
+                <thead className="bg-slate-50">
+                  <tr className="text-left text-sm text-slate-500">
+                    <th className="px-6 py-4 font-medium">Document</th>
+                    <th className="px-6 py-4 font-medium">Type</th>
+                    <th className="px-6 py-4 font-medium">Confiance</th>
+                    <th className="px-6 py-4 font-medium">Statut</th>
+                    <th className="px-6 py-4 font-medium text-right">Action</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+                </thead>
+                <tbody>
+                  {documents.map((doc) => (
+                    <tr
+                      key={doc.id}
+                      className="border-t border-slate-100 transition hover:bg-slate-50/70"
+                    >
+                      <td className="px-6 py-5">
+                        <div>
+                          <p className="font-semibold text-slate-900">{doc.name}</p>
+                          <p className="mt-1 text-sm text-slate-500">ID: {doc.id.slice(0, 8)}...</p>
+                        </div>
+                      </td>
+                      <td className="px-6 py-5 text-sm text-slate-700">
+                        {doc.type || "Non classifié"}
+                      </td>
+                      <td className="px-6 py-5 text-sm font-semibold text-slate-900">
+                        {doc.confidence}
+                      </td>
+                      <td className="px-6 py-5">
+                        <StatusBadge
+                          label={getStatusLabel(doc.status)}
+                          variant={getStatusVariant(doc.status)}
+                        />
+                      </td>
+                      <td className="px-6 py-5 text-right">
+                        <Link
+                          to={`/documents/${doc.id}`}
+                          className="inline-flex items-center rounded-2xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+                        >
+                          Voir détail
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </SectionCard>
       </div>
     </Layout>
   );

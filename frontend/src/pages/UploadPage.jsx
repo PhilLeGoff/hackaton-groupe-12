@@ -1,4 +1,5 @@
 import React, { useState, useRef } from "react";
+import { Link } from "react-router-dom";
 import { Layout } from "../components/Layout";
 import { api } from "../api/axios";
 
@@ -79,7 +80,7 @@ export const UploadPage = () => {
           </p>
 
           <p className="text-xs text-gray-500 mt-2">
-            Formats acceptés : PDF, JPEG, JPG
+            Formats acceptés : PDF, JPEG, JPG, PNG
           </p>
 
           <button
@@ -95,7 +96,7 @@ export const UploadPage = () => {
           <input
             ref={inputRef}
             type="file"
-            accept=".pdf,.jpeg,.jpg"
+            accept=".pdf,.jpeg,.jpg,.png"
             onChange={handleFileChange}
             hidden
           />
@@ -127,8 +128,14 @@ export const UploadPage = () => {
                 <p><strong>Nom :</strong> {f.filename}</p>
                 <p><strong>Statut :</strong> {f.status === "duplicate" ? "Doublon détecté" : "Uploadé"}</p>
                 {f.message && <p className="text-yellow-400 text-sm">{f.message}</p>}
+                <Link to={`/documents/${f.id}`} className="text-blue-400 hover:underline text-sm">
+                  Voir le document
+                </Link>
               </div>
             ))}
+            <Link to="/dashboard" className="mt-3 block text-center text-blue-400 hover:underline text-sm">
+              Voir le dashboard
+            </Link>
           </div>
         )}
       </div>

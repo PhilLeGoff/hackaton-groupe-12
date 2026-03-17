@@ -15,6 +15,7 @@ ALLOWED_MIME_TYPES = {
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "image/jpeg",
     "image/jpg",
+    "image/png",
     "text/plain",
 }
 

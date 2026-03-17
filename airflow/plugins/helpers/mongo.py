@@ -5,7 +5,7 @@ from pymongo import MongoClient
 from bson import ObjectId
 
 MONGO_URL = os.getenv("MONGO_URL", "mongodb://mongodb:27017")
-MONGO_DB = "Hakathon"
+MONGO_DB = "Hackathon"
 MONGO_COLLECTION = "documents"
 
 _client = None
