@@ -67,3 +67,6 @@ CLAUDE.md
 .pytest_cache/
 .coverage
 htmlcov/
+
+
+kanban*

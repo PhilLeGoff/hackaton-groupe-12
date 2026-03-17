@@ -1,0 +1,31 @@
+sequenceDiagram
+    actor User as Utilisateur
+    participant Front as Frontend
+    participant Back as Backend
+    participant Mongo as MongoDB
+    participant HDFS as HDFS
+    participant Air as Airflow
+
+    Note over User,Air: Upload
+    User->>Front: Upload document (PDF/image)
+    Front->>Back: POST /api/upload
+    Back->>Mongo: Sauvegarder metadata
+    Back->>HDFS: Ecrire dans /raw/{id}/
+    Back->>Air: Trigger DAG (document_id)
+    Back-->>Front: 200 OK
+
+    Note over User,Air: Traitement
+    Air->>HDFS: Lire fichier brut
+    Air->>Air: OCR → Extraction → Classification → Validation
+    Air->>HDFS: Ecrire resultats /curated/
+    Air->>Mongo: status → completed + resultats
+
+    Note over User,Air: Consultation
+    User->>Front: Ouvre dashboard
+    Front->>Back: GET /api/documents
+    Back->>Mongo: Lire documents
+    Back-->>Front: Liste + statuts
+    User->>Front: Clique document
+    Front->>Back: GET /api/documents/{id}
+    Back-->>Front: OCR, entites, anomalies
+    Front-->>User: Affiche resultats

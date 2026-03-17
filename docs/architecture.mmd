@@ -1,0 +1,15 @@
+graph TB
+    Front["Frontend\nReact + Vite\n:5173"] <-->|"API REST"| Back["Backend\nFastAPI\n:8000"]
+    Back <--> Mongo[("MongoDB\n:27017")]
+    Back -->|"fichier brut"| HDFS[("HDFS\n:9870")]
+    Back -->|"trigger"| Airflow["Airflow\n:8080"]
+    Airflow <--> Mongo
+    Airflow <--> HDFS
+    Airflow --> IA["Modules IA\nOCR / NLP / Classification\nAnomalies"]
+
+    style Front fill:#3b82f6,color:#fff
+    style Back fill:#f59e0b,color:#fff
+    style Mongo fill:#10b981,color:#fff
+    style HDFS fill:#10b981,color:#fff
+    style Airflow fill:#8b5cf6,color:#fff
+    style IA fill:#ef4444,color:#fff

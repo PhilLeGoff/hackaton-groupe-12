@@ -24,6 +24,8 @@ services:
       - "8000:8000"
     environment:
       - MONGODBURL=mongodb://mongodb:27017
+      - HDFS_WEBHDFS_URL=http://hdfs-namenode:9870/webhdfs/v1
+      - AIRFLOW_BASE_URL=http://airflow-webserver:8080
     volumes:
       - ../backend:/app
     depends_on:
@@ -110,6 +112,7 @@ services:
       - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@airflow-postgres/airflow
       - AIRFLOW__CORE__LOAD_EXAMPLES=false
       - AIRFLOW__WEBSERVER__EXPOSE_CONFIG=true
+      - AIRFLOW__API__AUTH_BACKENDS=airflow.api.auth.backend.basic_auth
       - PYTHONPATH=/opt/airflow/plugins:/opt/airflow:/opt/airflow/ia
       - MONGO_URL=mongodb://mongodb:27017
       - HDFS_WEBHDFS_URL=http://hdfs-namenode:9870/webhdfs/v1
