@@ -7,7 +7,7 @@ import logging
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 
-from helpers.mongo import get_document, update_document
+from helpers.mongo import get_document, update_document, get_collection
 from helpers.hdfs import read as hdfs_read, write as hdfs_write
 
 logger = logging.getLogger("docuscan.pipeline")
@@ -35,7 +35,7 @@ except ImportError:
 try:
     from ia.anomaly_detection.detector import validate
 except ImportError:
-    def validate(entities: dict, classification: dict, document_id: str) -> dict:
+    def validate(entities: dict, classification: dict, document_id: str, collection=None) -> dict:
         return {"is_valid": True, "anomalies": []}
 
 
@@ -45,6 +45,17 @@ def _get_document_id(context) -> str:
     if not document_id:
         raise ValueError("document_id manquant dans dag_run.conf")
     return document_id
+
+
+def _set_error_status(document_id: str, task_name: str, error: str):
+    try:
+        update_document(document_id, {
+            "status": "error",
+            "error": f"{task_name}: {error}",
+            "error_at": datetime.utcnow(),
+        })
+    except Exception:
+        logger.error(f"Impossible de mettre le status error pour {document_id}")
 
 
 def start_processing(**context):
@@ -67,12 +78,14 @@ def run_ocr(**context):
     try:
         raw_content = hdfs_read(hdfs_raw_path)
     except Exception as e:
-        logger.warning(f"HDFS read échoué: {e}")
-        raw_content = b""
+        _set_error_status(document_id, "run_ocr", f"Fichier introuvable dans HDFS: {hdfs_raw_path}")
+        raise ValueError(f"HDFS read échoué pour {hdfs_raw_path}: {e}")
 
     ocr_text = extract_text(raw_content, content_type)
-    logger.info(f"OCR terminé: {len(ocr_text)} caractères")
+    if not ocr_text or ocr_text.startswith("[PLACEHOLDER"):
+        logger.warning(f"OCR placeholder utilisé pour {document_id}")
 
+    logger.info(f"OCR terminé: {len(ocr_text)} caractères")
     context["ti"].xcom_push(key="ocr_text", value=ocr_text)
     context["ti"].xcom_push(key="content_type", value=content_type)
 
@@ -84,14 +97,19 @@ def store_clean_hdfs(**context):
     try:
         hdfs_write(f"/clean/{document_id}/ocr_text.txt", ocr_text.encode("utf-8"))
     except Exception as e:
-        logger.warning(f"HDFS write échoué: {e}")
+        logger.warning(f"HDFS write clean échoué: {e}")
 
 
 def extract_entities(**context):
     document_id = _get_document_id(context)
     ocr_text = context["ti"].xcom_pull(task_ids="run_ocr", key="ocr_text")
 
-    entities = extract_ner(ocr_text)
+    try:
+        entities = extract_ner(ocr_text)
+    except Exception as e:
+        _set_error_status(document_id, "extract_entities", str(e))
+        raise
+
     logger.info(f"Entités extraites pour {document_id}: {entities}")
     context["ti"].xcom_push(key="entities", value=entities)
 
@@ -100,7 +118,12 @@ def classify_document(**context):
     document_id = _get_document_id(context)
     ocr_text = context["ti"].xcom_pull(task_ids="run_ocr", key="ocr_text")
 
-    classification = classify(ocr_text)
+    try:
+        classification = classify(ocr_text)
+    except Exception as e:
+        _set_error_status(document_id, "classify_document", str(e))
+        raise
+
     logger.info(f"Classification pour {document_id}: {classification}")
     context["ti"].xcom_push(key="classification", value=classification)
 
@@ -110,7 +133,14 @@ def validate_coherence(**context):
     entities = context["ti"].xcom_pull(task_ids="extract_entities", key="entities")
     classification = context["ti"].xcom_pull(task_ids="classify_document", key="classification")
 
-    validation_result = validate(entities, classification, document_id)
+    try:
+        # Passe la collection MongoDB pour que Data/IA 2 puisse comparer avec d'autres documents
+        collection = get_collection()
+        validation_result = validate(entities, classification, document_id, collection=collection)
+    except Exception as e:
+        _set_error_status(document_id, "validate_coherence", str(e))
+        raise
+
     validation_result["checked_at"] = datetime.utcnow().isoformat()
     logger.info(f"Validation pour {document_id}: {validation_result}")
     context["ti"].xcom_push(key="validation", value=validation_result)
@@ -131,7 +161,7 @@ def store_curated_hdfs(**context):
     try:
         hdfs_write(f"/curated/{document_id}/result.json", json.dumps(curated_data, ensure_ascii=False).encode("utf-8"))
     except Exception as e:
-        logger.warning(f"HDFS write échoué: {e}")
+        logger.warning(f"HDFS write curated échoué: {e}")
 
     context["ti"].xcom_push(key="curated_data", value=curated_data)
 
@@ -140,15 +170,19 @@ def sync_mongodb(**context):
     document_id = _get_document_id(context)
     curated_data = context["ti"].xcom_pull(task_ids="store_curated_hdfs", key="curated_data")
 
-    update_document(document_id, {
-        "status": "completed",
-        "ocr_text": curated_data.get("ocr_text"),
-        "entities": curated_data.get("entities"),
-        "classification": curated_data.get("classification"),
-        "validation": curated_data.get("validation"),
-        "processed_at": datetime.utcnow(),
-    })
-    logger.info(f"Document {document_id} → status: completed")
+    try:
+        update_document(document_id, {
+            "status": "completed",
+            "ocr_text": curated_data.get("ocr_text"),
+            "entities": curated_data.get("entities"),
+            "classification": curated_data.get("classification"),
+            "validation": curated_data.get("validation"),
+            "processed_at": datetime.utcnow(),
+        })
+        logger.info(f"Document {document_id} → status: completed")
+    except Exception as e:
+        _set_error_status(document_id, "sync_mongodb", str(e))
+        raise
 
 
 with DAG(
