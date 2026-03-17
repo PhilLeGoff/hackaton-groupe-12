@@ -25,54 +25,67 @@ Plateforme de traitement automatisé de documents administratifs (factures, devi
 ## Architecture
 
 ```
-┌──────────────────────────────── Docker Compose ───────────────────────────────────┐
-│                                                                                   │
-│  ┌─────────────┐    ┌──────────────┐    ┌─────────────┐                          │
-│  │  Front-end  │───▶│   FastAPI     │───▶│   MongoDB   │                          │
-│  │   React     │◀───│   Backend     │◀───│  (base      │                          │
-│  │             │    │              │    │  applicat.) │                          │
-│  │  - Upload   │    │  - Reçoit    │    │             │                          │
-│  │  - CRM      │    │    uploads   │    │ - Méta docs │     ┌────────────────┐   │
-│  │  - Conform. │    │  - Écrit     │───▶│ - CRM       │     │  Hadoop HDFS   │   │
-│  │  - Dashboard│    │    direct    │    │ - Conformité│     │                │   │
-│  └─────────────┘    │    HDFS Raw  │──┐ └──────┬──────┘     │  Raw  │ Clean  │   │
-│                     │  - Déclenche │  │        │ ▲          │       │ Curated│   │
-│                     │    Airflow   │  │        │ │          │                │   │
-│                     └──────────────┘  │        │ │          └───────┬────────┘   │
-│                                       │        │ │ sync             │            │
-│                              upload   │        │ │ (étape 8)       │            │
-│                              direct   │        │ │                  │ lecture    │
-│                                       │        ▼ │                  │ & écriture │
-│  ┌────────────────────────────────────┼──────────────────────────────┼────────┐  │
-│  │  Airflow DAG — document_pipeline   │                              │        │  │
-│  │                                    ▼                              │        │  │
-│  │  1. start_processing ──▶ 2. run_ocr ──▶ 3. store_clean_hdfs     │        │  │
-│  │  (status → processing)   (lit HDFS Raw,   (→ HDFS Clean)  ◀──────┘        │  │
-│  │                           pdfplumber/                                      │  │
-│  │                           EasyOCR)                                         │  │
-│  │                                                                            │  │
-│  │  4. extract_entities ──▶ 5. classify_document ──▶ 6. validate_coherence   │  │
-│  │  (regex + spaCy)        (keywords + ML)           (compare docs MongoDB)  │  │
-│  │                                                          │                │  │
-│  │                     ┌────────────────────────────────────┘                │  │
-│  │                     ▼                                                      │  │
-│  │  7. store_curated_hdfs ──▶ 8. sync_mongodb                                │  │
-│  │     (→ HDFS Curated)       (résultats → MongoDB)                          │  │
-│  │                                                                            │  │
-│  │                     ┌─────────────┐                                        │  │
-│  │                     │  Couche IA  │                                        │  │
-│  │                     │ - OCR       │                                        │  │
-│  │                     │ - NER       │                                        │  │
-│  │                     │ - Classif.  │                                        │  │
-│  │                     │ - Anomaly   │                                        │  │
-│  │                     └─────────────┘                                        │  │
-│  └────────────────────────────────────────────────────────────────────────────┘  │
-│                                                                                   │
-└───────────────────────────────────────────────────────────────────────────────────┘
+                              ┌───────────────┐
+                              │  Utilisateur   │
+                              │  Upload PDF /  │
+                              │  JPEG / PNG    │
+                              └───────┬───────┘
+                                      │
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                              Docker Compose                                     │
+│                                                                                 │
+│  ┌──────────────┐       ┌──────────────┐       ┌──────────────┐                │
+│  │              │       │              │       │              │                │
+│  │   React      │──────▶│   FastAPI     │──────▶│   MongoDB    │                │
+│  │   Front-end  │◀──────│   Backend     │◀──────│              │                │
+│  │              │       │              │       │  Métadonnées │                │
+│  │  Upload      │       │  /api/upload │       │  Entités     │                │
+│  │  Dashboard   │       │  /api/docs   │       │  Anomalies   │                │
+│  │  CRM         │       │  /api/crm    │       │  CRM         │                │
+│  │  Conformité  │       │  /api/conf.  │       │  Conformité  │                │
+│  │              │       │              │       │              │                │
+│  └──────────────┘       └──────┬───────┘       └──────▲───────┘                │
+│                                │                      │                         │
+│                    ┌───────────┴───────────┐          │ sync                    │
+│                    │                       │          │ (étape 8)               │
+│                    ▼                       ▼          │                         │
+│  ┌─────────────────────┐    ┌──────────────────────────────────────────────┐   │
+│  │                     │    │                                              │   │
+│  │    Hadoop HDFS      │    │     Airflow DAG — document_pipeline          │   │
+│  │                     │    │                                              │   │
+│  │  ┌───────────────┐  │◀──│──  1. start_processing                       │   │
+│  │  │               │  │   │     (status → "processing" dans MongoDB)     │   │
+│  │  │   Raw Zone    │──│──▶│──  2. run_ocr                                │   │
+│  │  │   /raw/{id}/  │  │   │     (pdfplumber / EasyOCR)                   │   │
+│  │  │               │  │   │                                              │   │
+│  │  ├───────────────┤  │◀──│──  3. store_clean_hdfs                       │   │
+│  │  │               │  │   │     (texte extrait → HDFS Clean)             │   │
+│  │  │  Clean Zone   │  │   │                                              │   │
+│  │  │  /clean/{id}/ │  │   │  4. extract_entities  (regex + spaCy)        │   │
+│  │  │               │  │   │  5. classify_document  (keywords + ML)       │   │
+│  │  ├───────────────┤  │   │  6. validate_coherence (compare MongoDB)     │   │
+│  │  │               │  │   │                                              │   │
+│  │  │ Curated Zone  │  │◀──│──  7. store_curated_hdfs                     │   │
+│  │  │ /curated/{id}/│  │   │     (JSON enrichi → HDFS Curated)            │   │
+│  │  │               │  │   │                                              │   │
+│  │  └───────────────┘  │   │  8. sync_mongodb ────────────────────────────│───┘
+│  │                     │    │     (résultats → MongoDB)                    │
+│  └─────────────────────┘    │                                              │
+│                              │  ┌────────────┐                             │
+│                              │  │ Couche IA  │  Appelée par les tâches     │
+│                              │  │ ia/ocr/    │  2, 4, 5, 6                 │
+│                              │  │ ia/ner/    │                             │
+│                              │  │ ia/classif/│                             │
+│                              │  │ ia/anomaly/│                             │
+│                              │  └────────────┘                             │
+│                              └──────────────────────────────────────────────┘
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
 
-Flux upload   : Front-end → FastAPI → métadonnées MongoDB + fichier direct HDFS Raw → déclenche Airflow
-Flux pipeline : Airflow lit HDFS Raw → OCR → HDFS Clean → NER/Classif/Anomaly → HDFS Curated → sync MongoDB
-Flux lecture  : Front-end → FastAPI → MongoDB (données structurées CRM, conformité)
+Flux upload  : Front → FastAPI → métadonnées MongoDB + fichier direct HDFS Raw → trigger Airflow
+Flux pipeline: Airflow lit HDFS Raw → OCR → HDFS Clean → NER/Classif/Anomaly → HDFS Curated → sync MongoDB
+Flux lecture : Front → FastAPI → MongoDB (données structurées)
 ```
 
 ### Stockage — HDFS + MongoDB
