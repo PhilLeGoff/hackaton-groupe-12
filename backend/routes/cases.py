@@ -1,9 +1,9 @@
 from fastapi import APIRouter, HTTPException
 from config.database import case_collection
 
-router = APIRouter(prefix="/api/cases", tags=["cases"])
+_router = APIRouter(prefix="/api/cases", tags=["cases"])
 
-@router.get("")
+@_router.get("")
 async def get_cases():
 
     cases = []
@@ -22,7 +22,7 @@ async def get_cases():
 
     return cases
   
-@router.get("/{case_id}")
+@_router.get("/{case_id}")
 async def get_case(case_id: str):
 
     case = await case_collection.find_one({"_id": case_id})

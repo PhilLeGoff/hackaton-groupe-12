@@ -1,9 +1,9 @@
 from fastapi import APIRouter, HTTPException
 from config.database import compliance_collection
 
-router = APIRouter(prefix="/api/compliances", tags=["compliances"])
+_router = APIRouter(prefix="/api/compliances", tags=["compliances"])
 
-@router.get("")
+@_router.get("")
 async def get_compliances():
     compliances = []
 
@@ -18,7 +18,7 @@ async def get_compliances():
 
     return compliances
 
-@router.get("/{compliance_id}")
+@_router.get("/{compliance_id}")
 async def get_compliance(compliance_id: str):
 
     comp = await compliance_collection.find_one({"_id": compliance_id})

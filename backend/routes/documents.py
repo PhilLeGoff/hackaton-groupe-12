@@ -1,10 +1,9 @@
 from fastapi import APIRouter, HTTPException
-from backend.config.database import db
 from config.database import document_collection
 
-router = APIRouter(prefix="/api/documents", tags=["documents"])
+_router = APIRouter(prefix="/api/documents", tags=["documents"])
 
-@router.get("")
+@_router.get("")
 async def get_documents():
 
     documents = []
@@ -23,7 +22,7 @@ async def get_documents():
   
 
 
-@router.get("/{document_id}")
+@_router.get("/{document_id}")
 async def get_document(document_id: str):
 
     doc = await document_collection.find_one({"_id": document_id})
