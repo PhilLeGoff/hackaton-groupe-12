@@ -6,19 +6,26 @@ sequenceDiagram
     participant HDFS as HDFS
     participant Air as Airflow
 
-    Note over User,Air: Upload
+    Note over User,Air: Upload (Bronze)
     User->>Front: Upload document (PDF/image)
     Front->>Back: POST /api/upload
-    Back->>Mongo: Sauvegarder metadata
-    Back->>HDFS: Ecrire dans /raw/{id}/
+    Back->>Mongo: Sauvegarder metadata (status: uploaded)
+    Back->>HDFS: Ecrire dans /raw/{id}/ (Bronze)
     Back->>Air: Trigger DAG (document_id)
     Back-->>Front: 200 OK
 
-    Note over User,Air: Traitement
-    Air->>HDFS: Lire fichier brut
-    Air->>Air: OCR → Extraction → Classification → Validation
-    Air->>HDFS: Ecrire resultats /curated/
-    Air->>Mongo: status → completed + resultats
+    Note over User,Air: Traitement — Bronze → Silver
+    Air->>Mongo: status → processing
+    Air->>HDFS: Lire fichier brut /raw/{id}/ (Bronze)
+    Air->>Air: OCR (extract_text)
+    Air->>HDFS: Ecrire texte OCR /clean/{id}/ (Silver)
+
+    Note over User,Air: Traitement — Silver → Gold
+    Air->>Air: NER (extract_entities)
+    Air->>Air: Classification (classify_document)
+    Air->>Air: Validation (validate_coherence)
+    Air->>HDFS: Ecrire JSON enrichi /curated/{id}/ (Gold)
+    Air->>Mongo: status → completed + resultats IA
 
     Note over User,Air: Consultation
     User->>Front: Ouvre dashboard
