@@ -1,0 +1,184 @@
+services:
+
+  # ============================================
+  # MongoDB — Base de données principale
+  # ============================================
+  # Stocke les métadonnées des documents, les résultats d'extraction, etc.
+  # Accessible sur le port 27017 depuis l'hôte
+  mongodb:
+    image: mongo:7
+    container_name: docuscan-mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================
+  # Backend — API FastAPI
+  # ============================================
+  # REST API qui reçoit les uploads et communique avec MongoDB
+  # Accessible sur le port 8000 depuis l'hôte
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: docuscan-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - MONGODBURL=mongodb://mongodb:27017
+    volumes:
+      - ../backend:/app    # Hot reload : le code local est monté dans le container
+    depends_on:
+      mongodb:
+        condition: service_healthy
+
+  # ============================================
+  # Frontend — React + Vite
+  # ============================================
+  # Interface utilisateur, proxifie /api vers le backend
+  # Accessible sur le port 5173 depuis l'hôte
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    container_name: docuscan-frontend
+    ports:
+      - "5173:5173"
+    environment:
+      - APP_PORT=8000
+      - API_HOST=backend
+    volumes:
+      - ../frontend:/app          # Hot reload
+      - /app/node_modules         # Préserve les node_modules du container
+    depends_on:
+      - backend
+
+  # ============================================
+  # HDFS — Namenode
+  # ============================================
+  # Le namenode gère le système de fichiers distribué HDFS
+  # WebHDFS REST API accessible sur le port 9870
+  hdfs-namenode:
+    image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
+    container_name: docuscan-hdfs-namenode
+    ports:
+      - "9870:9870"   # WebUI HDFS
+      - "9000:9000"   # HDFS RPC
+    environment:
+      - CLUSTER_NAME=docuscan
+      - CORE_CONF_fs_defaultFS=hdfs://hdfs-namenode:9000
+      - CORE_CONF_hadoop_http_staticuser_user=root
+      - HDFS_CONF_dfs_webhdfs_enabled=true
+      - HDFS_CONF_dfs_permissions_enabled=false
+      - HDFS_CONF_dfs_namenode_datanode_registration_ip___hostname___check=false
+    volumes:
+      - hdfs_namenode_data:/hadoop/dfs/name
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9870/ || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
+  # ============================================
+  # HDFS — Datanode
+  # ============================================
+  # Le datanode stocke les blocs de données
+  hdfs-datanode:
+    image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
+    container_name: docuscan-hdfs-datanode
+    environment:
+      - CORE_CONF_fs_defaultFS=hdfs://hdfs-namenode:9000
+      - HDFS_CONF_dfs_webhdfs_enabled=true
+      - HDFS_CONF_dfs_permissions_enabled=false
+    volumes:
+      - hdfs_datanode_data:/hadoop/dfs/data
+    depends_on:
+      hdfs-namenode:
+        condition: service_healthy
+
+  # ============================================
+  # Airflow — PostgreSQL (metadata DB pour Airflow)
+  # ============================================
+  # Airflow a besoin d'une base relationnelle pour stocker ses métadonnées
+  airflow-postgres:
+    image: postgres:15-alpine
+    container_name: docuscan-airflow-postgres
+    environment:
+      - POSTGRES_USER=airflow
+      - POSTGRES_PASSWORD=airflow
+      - POSTGRES_DB=airflow
+    volumes:
+      - airflow_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================
+  # Airflow Init — Initialisation one-shot
+  # ============================================
+  # Crée la base de données Airflow et le user admin au premier lancement
+  airflow-init:
+    image: apache/airflow:2.9.1-python3.11
+    container_name: docuscan-airflow-init
+    environment: &airflow-env
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@airflow-postgres/airflow
+      - AIRFLOW__CORE__LOAD_EXAMPLES=false
+      - AIRFLOW__WEBSERVER__EXPOSE_CONFIG=true
+    entrypoint: >
+      bash -c "
+        airflow db migrate &&
+        airflow users create --username admin --password admin --firstname Admin --lastname User --role Admin --email admin@docuscan.local || true
+      "
+    depends_on:
+      airflow-postgres:
+        condition: service_healthy
+
+  # ============================================
+  # Airflow Webserver — Interface web
+  # ============================================
+  # Dashboard Airflow pour visualiser et gérer les DAGs
+  # Accessible sur le port 8080 (login: admin / admin)
+  airflow-webserver:
+    image: apache/airflow:2.9.1-python3.11
+    container_name: docuscan-airflow-webserver
+    environment: *airflow-env
+    ports:
+      - "8080:8080"
+    volumes:
+      - ../airflow/dags:/opt/airflow/dags
+      - ../airflow/plugins:/opt/airflow/plugins
+    command: airflow webserver
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+
+  # ============================================
+  # Airflow Scheduler — Exécution des DAGs
+  # ============================================
+  # Le scheduler lance les tasks définies dans les DAGs
+  airflow-scheduler:
+    image: apache/airflow:2.9.1-python3.11
+    container_name: docuscan-airflow-scheduler
+    environment: *airflow-env
+    volumes:
+      - ../airflow/dags:/opt/airflow/dags
+      - ../airflow/plugins:/opt/airflow/plugins
+    command: airflow scheduler
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+
+volumes:
+  mongodb_data:
+  airflow_pg_data:
+  hdfs_namenode_data:
+  hdfs_datanode_data:
