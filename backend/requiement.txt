@@ -5,4 +5,7 @@ dotenv
 pydantic
 typing
 motor
+pypdf 
+python-docx 
+Pillow
 
