@@ -1,10 +1,6 @@
 services:
 
-  # ============================================
-  # MongoDB — Base de données principale
-  # ============================================
-  # Stocke les métadonnées des documents, les résultats d'extraction, etc.
-  # Accessible sur le port 27017 depuis l'hôte
+  # MongoDB — port 27017
   mongodb:
     image: mongo:7
     container_name: docuscan-mongodb
@@ -18,11 +14,7 @@ services:
       timeout: 5s
       retries: 5
 
-  # ============================================
-  # Backend — API FastAPI
-  # ============================================
-  # REST API qui reçoit les uploads et communique avec MongoDB
-  # Accessible sur le port 8000 depuis l'hôte
+  # Backend FastAPI — port 8000
   backend:
     build:
       context: ../backend
@@ -33,16 +25,12 @@ services:
     environment:
       - MONGODBURL=mongodb://mongodb:27017
     volumes:
-      - ../backend:/app    # Hot reload : le code local est monté dans le container
+      - ../backend:/app
     depends_on:
       mongodb:
         condition: service_healthy
 
-  # ============================================
-  # Frontend — React + Vite
-  # ============================================
-  # Interface utilisateur, proxifie /api vers le backend
-  # Accessible sur le port 5173 depuis l'hôte
+  # Frontend React Vite — port 5173
   frontend:
     build:
       context: ../frontend
@@ -54,24 +42,20 @@ services:
       - APP_PORT=8000
       - API_HOST=backend
     volumes:
-      - ../frontend/src:/app/src              # Hot reload du code source
-      - ../frontend/public:/app/public        # Hot reload des assets
+      - ../frontend/src:/app/src
+      - ../frontend/public:/app/public
       - ../frontend/index.html:/app/index.html
       - ../frontend/vite.config.js:/app/vite.config.js
     depends_on:
       - backend
 
-  # ============================================
-  # HDFS — Namenode
-  # ============================================
-  # Le namenode gère le système de fichiers distribué HDFS
-  # WebHDFS REST API accessible sur le port 9870
+  # HDFS Namenode — port 9870 (WebUI), 9000 (RPC)
   hdfs-namenode:
     image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
     container_name: docuscan-hdfs-namenode
     ports:
-      - "9870:9870"   # WebUI HDFS
-      - "9000:9000"   # HDFS RPC
+      - "9870:9870"
+      - "9000:9000"
     environment:
       - CLUSTER_NAME=docuscan
       - CORE_CONF_fs_defaultFS=hdfs://hdfs-namenode:9000
@@ -87,10 +71,7 @@ services:
       timeout: 10s
       retries: 5
 
-  # ============================================
-  # HDFS — Datanode
-  # ============================================
-  # Le datanode stocke les blocs de données
+  # HDFS Datanode
   hdfs-datanode:
     image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
     container_name: docuscan-hdfs-datanode
@@ -104,10 +85,7 @@ services:
       hdfs-namenode:
         condition: service_healthy
 
-  # ============================================
-  # Airflow — PostgreSQL (metadata DB pour Airflow)
-  # ============================================
-  # Airflow a besoin d'une base relationnelle pour stocker ses métadonnées
+  # Airflow PostgreSQL (metadata DB)
   airflow-postgres:
     image: postgres:15-alpine
     container_name: docuscan-airflow-postgres
@@ -123,10 +101,7 @@ services:
       timeout: 5s
       retries: 5
 
-  # ============================================
-  # Airflow Init — Initialisation one-shot
-  # ============================================
-  # Crée la base de données Airflow et le user admin au premier lancement
+  # Airflow Init — one-shot (db migrate + create admin user)
   airflow-init:
     image: apache/airflow:2.9.1-python3.11
     container_name: docuscan-airflow-init
@@ -135,20 +110,20 @@ services:
       - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@airflow-postgres/airflow
       - AIRFLOW__CORE__LOAD_EXAMPLES=false
       - AIRFLOW__WEBSERVER__EXPOSE_CONFIG=true
+      - PYTHONPATH=/opt/airflow/plugins:/opt/airflow
     entrypoint: >
       bash -c "
+        pip install --no-cache-dir -r /opt/airflow/requirements.txt &&
         airflow db migrate &&
         airflow users create --username admin --password admin --firstname Admin --lastname User --role Admin --email admin@docuscan.local || true
       "
+    volumes:
+      - ../airflow/requirements.txt:/opt/airflow/requirements.txt
     depends_on:
       airflow-postgres:
         condition: service_healthy
 
-  # ============================================
-  # Airflow Webserver — Interface web
-  # ============================================
-  # Dashboard Airflow pour visualiser et gérer les DAGs
-  # Accessible sur le port 8080 (login: admin / admin)
+  # Airflow Webserver — port 8080 (login: admin/admin)
   airflow-webserver:
     image: apache/airflow:2.9.1-python3.11
     container_name: docuscan-airflow-webserver
@@ -158,15 +133,15 @@ services:
     volumes:
       - ../airflow/dags:/opt/airflow/dags
       - ../airflow/plugins:/opt/airflow/plugins
-    command: airflow webserver
+      - ../airflow/requirements.txt:/opt/airflow/requirements.txt
+      - ../ia:/opt/airflow/ia
+    command: >
+      bash -c "pip install --no-cache-dir -r /opt/airflow/requirements.txt && airflow webserver"
     depends_on:
       airflow-init:
         condition: service_completed_successfully
 
-  # ============================================
-  # Airflow Scheduler — Exécution des DAGs
-  # ============================================
-  # Le scheduler lance les tasks définies dans les DAGs
+  # Airflow Scheduler
   airflow-scheduler:
     image: apache/airflow:2.9.1-python3.11
     container_name: docuscan-airflow-scheduler
@@ -174,7 +149,10 @@ services:
     volumes:
       - ../airflow/dags:/opt/airflow/dags
       - ../airflow/plugins:/opt/airflow/plugins
-    command: airflow scheduler
+      - ../airflow/requirements.txt:/opt/airflow/requirements.txt
+      - ../ia:/opt/airflow/ia
+    command: >
+      bash -c "pip install --no-cache-dir -r /opt/airflow/requirements.txt && airflow scheduler"
     depends_on:
       airflow-init:
         condition: service_completed_successfully
