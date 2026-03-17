@@ -1,5 +1,6 @@
 import React, { useState, useRef } from "react";
 import { Layout } from "../components/Layout";
+import { api } from "../api/axios";
 
 export const UploadPage = () => {
   const [file, setFile] = useState(null);
@@ -49,24 +50,13 @@ export const UploadPage = () => {
     setUploadResult(null);
 
     const formData = new FormData();
-    formData.append("file", file);
+    formData.append("files", file);
 
     try {
-      const response = await fetch("http://localhost:8000/", {
-        method: "POST",
-        body: formData,
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        setErrorMessage(data.detail || "Erreur lors de l'upload.");
-        return;
-      }
-
-      setUploadResult(data);
+      const response = await api.post("/api/upload", formData);
+      setUploadResult(response.data);
     } catch (error) {
-      setErrorMessage("Impossible de contacter le backend.");
+      setErrorMessage(error.response?.data?.detail || "Impossible de contacter le backend.");
       console.error(error);
     } finally {
       setIsUploading(false);
@@ -127,23 +117,18 @@ export const UploadPage = () => {
           {isUploading ? "Upload en cours..." : "Upload"}
         </button>
 
-        {uploadResult && (
+        {uploadResult?.files && (
           <div className="mt-4 border border-gray-600 rounded-lg p-4 w-[420px] bg-gray-900 text-white">
             <h2 className="text-xl font-semibold mb-3">
-              Résultat de l'analyse
+              Résultat de l'upload
             </h2>
-
-            <p>
-              <strong>Nom :</strong> {uploadResult.filename}
-            </p>
-
-            <p>
-              <strong>Type :</strong> {uploadResult.content_type}
-            </p>
-
-            <p>
-              <strong>Taille :</strong> {uploadResult.size} octets
-            </p>
+            {uploadResult.files.map((f, i) => (
+              <div key={i} className="mb-2">
+                <p><strong>Nom :</strong> {f.filename}</p>
+                <p><strong>Statut :</strong> {f.status === "duplicate" ? "Doublon détecté" : "Uploadé"}</p>
+                {f.message && <p className="text-yellow-400 text-sm">{f.message}</p>}
+              </div>
+            ))}
           </div>
         )}
       </div>

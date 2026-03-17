@@ -1,11 +1,11 @@
 import { api } from "./axios";
 
-export const getDocumentById = async (id) => {
-  const response = await api.get(`/documents/${id}`);
+export const getDocuments = async () => {
+  const response = await api.get("/api/documents");
   return response.data;
 };
 
-export const getDocumentExtraction = async (id) => {
-  const response = await api.get(`/documents/${id}/extraction`);
+export const getDocumentById = async (id) => {
+  const response = await api.get(`/api/documents/${id}`);
   return response.data;
 };
