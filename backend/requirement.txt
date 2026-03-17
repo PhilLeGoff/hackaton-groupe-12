@@ -9,3 +9,6 @@ pypdf
 python-docx 
 Pillow
 
+python-dotenv
+pydantic
+motor

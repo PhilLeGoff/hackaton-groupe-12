@@ -1,0 +1,57 @@
+export const mockCases = [
+  {
+    id: "1",
+    companyName: "Société Alpha",
+    siret: "12345678900011",
+    status: "À vérifier",
+    documents: 4,
+    owner: "Finance",
+    updatedAt: "Aujourd’hui",
+  },
+  {
+    id: "2",
+    companyName: "Beta Services",
+    siret: "98765432100022",
+    status: "Conforme",
+    documents: 5,
+    owner: "Achats",
+    updatedAt: "Il y a 2h",
+  },
+  {
+    id: "3",
+    companyName: "Gamma Industrie",
+    siret: "45612378900033",
+    status: "Non conforme",
+    documents: 3,
+    owner: "Juridique",
+    updatedAt: "Hier",
+  },
+  {
+    id: "4",
+    companyName: "Delta Conseil",
+    siret: "74185296300044",
+    status: "Conforme",
+    documents: 6,
+    owner: "Direction",
+    updatedAt: "Aujourd’hui",
+  },
+  {
+    id: "5",
+    companyName: "Epsilon SARL",
+    siret: "25836914700055",
+    status: "À vérifier",
+    documents: 2,
+    owner: "Comptabilité",
+    updatedAt: "Il y a 30 min",
+  },
+];
+
+export const caseSummary = {
+  companyName: "Société Alpha",
+  siret: "12345678900011",
+  status: "À vérifier",
+  documents: 3,
+  contact: "service.finance@alpha.fr",
+  sector: "Services administratifs",
+  updatedAt: "Aujourd’hui à 14:20",
+};
