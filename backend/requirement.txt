@@ -1,8 +1,6 @@
 fastapi
 python-multipart
 uvicorn
-dotenv
+python-dotenv
 pydantic
-typing
 motor
-
