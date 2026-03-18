@@ -8,15 +8,29 @@ _router = APIRouter(prefix="/api/documents", tags=["documents"])
 @_router.get("")
 async def get_documents():
     documents = []
-    async for doc in document_collection.find():
-        documents.append({
+    try:
+         async for doc in document_collection.find():
+            documents.append({
             "id": str(doc["_id"]),
             "name": doc.get("name") or doc.get("filename"),
             "type": doc.get("type"),
             "status": doc.get("status"),
             "confidence": f"{doc.get('confidence', 0)}%",
-        })
-    return documents
+         })
+         return documents
+        # comment: 
+    except Exception as e:
+        raise HTTPException(status_code=500,detail="impossible de se connecté à la base de donnée")
+    # end try
+   
+   
+   
+   
+   
+   
+   
+   
+   
 
 
 @_router.get("/{document_id}")
