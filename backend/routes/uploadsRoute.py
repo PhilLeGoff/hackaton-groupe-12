@@ -11,6 +11,7 @@ from params import HDFS_WEBHDFS_URL, AIRFLOW_BASE_URL
 from config.database import document_collection
 from services.document_processing import DocumentProcessingError, process_document
 from utils.extractorMetaData import extract_docx_metadata, extract_pdf_metadata
+from utils.logger import logger
 
 _router = APIRouter()
 
@@ -53,6 +54,7 @@ async def _hdfs_write(path: str, data: bytes):
 async def _trigger_dag(document_id: str):
     url = f"{AIRFLOW_BASE_URL}/api/v1/dags/document_pipeline/dagRuns"
     async with httpx.AsyncClient() as client:
+        
         resp = await client.post(
             url,
             json={"conf": {"document_id": document_id}},
@@ -61,6 +63,7 @@ async def _trigger_dag(document_id: str):
             timeout=15,
         )
         resp.raise_for_status()
+        
 @_router.post(
     "/api/upload",
     openapi_extra={
