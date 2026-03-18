@@ -8,6 +8,7 @@ This folder contains the dataset generation scripts used for OCR and extraction 
 - `generate_quotes.py`: generates synthetic French quotes (`devis`).
 - `generate_urssaf_certificates.py`: generates synthetic URSSAF vigilance certificates.
 - `generate_ribs.py`: generates synthetic RIB documents.
+- `pdf_utils.py`: shared PDF rendering helper used by all generators.
 
 Default output folders:
 
@@ -78,7 +79,7 @@ Generate 100 RIBs:
 python dataset/generate_ribs.py --count 100
 ```
 
-Generate only JSON files:
+Generate JSON plus PDFs only:
 
 ```bash
 python dataset/generate_invoices.py --format json
@@ -110,5 +111,7 @@ python dataset/generate_invoices.py --anomaly-rate 0.2
 
 ## Notes
 
+- These generators always create a `.pdf` file for each document.
+- The `--format` flag controls whether `.json`, `.txt`, or both are written in addition to the PDF.
 - These generators do not add layout position randomizer metadata.
 - Each generator writes a `summary.json` file to its output folder.

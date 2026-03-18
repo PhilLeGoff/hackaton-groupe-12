@@ -8,4 +8,4 @@ httpx
 pypdf
 python-docx
 Pillow
-email-validator
+faker

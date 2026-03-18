@@ -10,8 +10,12 @@ ROOT_DIR = Path(__file__).resolve().parents[2]
 BACKEND_DIR = ROOT_DIR / "backend"
 if str(BACKEND_DIR) not in sys.path:
     sys.path.append(str(BACKEND_DIR))
+if str(ROOT_DIR) not in sys.path:
+    sys.path.append(str(ROOT_DIR))
 
-from services.document_processing import process_document  # noqa: E402
+from ia.ocr.pipeline import extract_text  # noqa: E402
+from ia.nlp.ner import extract as extract_ner  # noqa: E402
+from ia.classification.classifier import classify  # noqa: E402
 from services.ocr_metrics import (  # noqa: E402
     character_error_rate,
     field_accuracy,
@@ -160,11 +164,17 @@ def evaluate_sample(pdf_path: Path) -> dict:
     reference_text = txt_path.read_text(encoding="utf-8")
     expected_json = json.loads(json_path.read_text(encoding="utf-8"))
 
-    analysis = process_document(
-        pdf_path.read_bytes(),
-        "application/pdf",
-        pdf_path.name,
-    )
+    raw_content = pdf_path.read_bytes()
+    ocr_text = extract_text(raw_content, "application/pdf", pdf_path.name)
+    ner_result = extract_ner(ocr_text)
+    classification = classify(ocr_text)
+    entities = ner_result.get("details", ner_result)
+
+    analysis = {
+        "ocr_text": ocr_text,
+        "document_type": classification["document_type"],
+        "entities": entities,
+    }
 
     document_type = DOC_TYPE_BY_FOLDER.get(pdf_path.parent.name, analysis["document_type"])
     expected_fields = extract_expected_fields(document_type, expected_json)

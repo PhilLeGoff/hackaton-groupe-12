@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Generate synthetic French bank account details for OCR and extraction tests."""
 
 from __future__ import annotations
 
@@ -10,13 +9,15 @@ import textwrap
 from dataclasses import dataclass
 from pathlib import Path
 
+from pdf_utils import write_text_pdf
+
 try:
     from faker import Faker
-except ImportError:  # pragma: no cover - optional dependency
+except ImportError:
     Faker = None
 
 
-ROOT_DIR = Path(__file__).resolve().parents[1]
+ROOT_DIR = Path(__file__).resolve().parents[2]
 DEFAULT_OUTPUT_DIR = ROOT_DIR / "data" / "generated" / "pdfs" / "ribs"
 BANKS = ["Societe Generale", "BNP Paribas", "Credit Agricole", "La Banque Postale"]
 COMPANY_SUFFIXES = ["SARL", "SAS", "EURL", "SCI", "SA"]
@@ -69,7 +70,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--format",
         choices=["both", "json", "txt"],
         default="both",
-        help="Output document format.",
+        help="Structured output format. A PDF is always generated too.",
     )
     return parser
 
@@ -169,7 +170,12 @@ def write_rib(index: int, rib: Rib, output_dir: Path, output_format: str) -> Non
         )
 
     if output_format in {"both", "txt"}:
-        (output_dir / f"{stem}.txt").write_text(rib_to_text(rib), encoding="utf-8")
+        txt_content = rib_to_text(rib)
+        (output_dir / f"{stem}.txt").write_text(txt_content, encoding="utf-8")
+    else:
+        txt_content = rib_to_text(rib)
+
+    write_text_pdf(output_dir / f"{stem}.pdf", txt_content)
 
 
 def main() -> None:

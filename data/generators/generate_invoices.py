@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Generate synthetic French supplier invoices for the hackathon dataset."""
 
 from __future__ import annotations
 
@@ -12,13 +11,15 @@ from datetime import date, timedelta
 from pathlib import Path
 from typing import List
 
+from pdf_utils import write_text_pdf
+
 try:
     from faker import Faker
-except ImportError:  # pragma: no cover - optional dependency
+except ImportError:
     Faker = None
 
 
-ROOT_DIR = Path(__file__).resolve().parents[1]
+ROOT_DIR = Path(__file__).resolve().parents[2]
 DEFAULT_OUTPUT_DIR = ROOT_DIR / "data" / "generated" / "factures"
 
 
@@ -144,7 +145,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--format",
         choices=["both", "json", "txt"],
         default="both",
-        help="Output document format.",
+        help="Structured output format. A PDF is always generated too.",
     )
     return parser
 
@@ -335,7 +336,12 @@ def write_invoice(invoice: Invoice, output_dir: Path, output_format: str) -> Non
 
     if output_format in {"both", "txt"}:
         txt_path = output_dir / f"{stem}.txt"
-        txt_path.write_text(invoice_to_text(invoice), encoding="utf-8")
+        txt_content = invoice_to_text(invoice)
+        txt_path.write_text(txt_content, encoding="utf-8")
+    else:
+        txt_content = invoice_to_text(invoice)
+
+    write_text_pdf(output_dir / f"{stem}.pdf", txt_content)
 
 
 def main() -> None:

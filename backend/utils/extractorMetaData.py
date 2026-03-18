@@ -17,7 +17,7 @@ def extract_pdf_metadata(content: bytes):
         "creation_date": str(info.creation_date),
         "pages": len(reader.pages)
     }
-    
+
 def extract_docx_metadata(content: bytes):
     try:
         from docx import Document

@@ -28,6 +28,7 @@ services:
       - AIRFLOW_BASE_URL=http://airflow-webserver:8080
     volumes:
       - ../backend:/app
+      - ../ia:/app/ia
     depends_on:
       mongodb:
         condition: service_healthy
