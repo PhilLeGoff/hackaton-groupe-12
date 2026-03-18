@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Layout } from "../components/Layout";
+import {api} from  "../api/axios"
 
 export const DashboardPage = () => {
   const [documents, setDocuments] = useState([]);
@@ -9,14 +10,14 @@ export const DashboardPage = () => {
   useEffect(() => {
     const fetchDocuments = async () => {
       try {
-        const response = await fetch("http://127.0.0.1:8000/api/documents");
-        const data = await response.json();
+        const response = await api.get("/documents");
+        const data = await response.data;
 
         if (!response.ok) {
           setErrorMessage("Impossible de récupérer les documents.");
           return;
         }
-
+        
         setDocuments(data);
       } catch (error) {
         setErrorMessage("Erreur de connexion avec le backend.");

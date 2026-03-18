@@ -7,7 +7,6 @@ async def test_create_document():
     async with AsyncClient(app=app, base_url="http://test") as client:
 
         # récupéreration de tous les documents
-        response2 = await client.get("/documents")
+        response2 = await client.get("/api/cases")
         assert response2.status_code == 200
-        print(len(response2.json())) 
-        print(response2.json()[0])
+        assert len(response2.json()) == 1

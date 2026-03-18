@@ -1,5 +1,6 @@
 import React, { useState, useRef } from "react";
 import { Layout } from "../components/Layout";
+import {api} from  "../api/axios"
 
 export const UploadPage = () => {
   const [files, setFiles] = useState([]);
@@ -53,12 +54,13 @@ export const UploadPage = () => {
     });
 
     try {
-      const response = await fetch("http://127.0.0.1:8000/api/upload", {
-        method: "POST",
-        body: formData,
+      const response = await api.post("/upload", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
       });
 
-      const data = await response.json();
+      const data = await response.data;
 
       if (!response.ok) {
         setErrorMessage(data.detail || "Erreur lors de l'upload.");

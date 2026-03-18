@@ -6,12 +6,14 @@
 ## Etat actuel
 
 **Ce qui marche** :
+
 - Upload multi-docs → HDFS (Raw) → Airflow (8 tasks) → OCR Tesseract → NER (regex + spaCy + fuzzy) → Classification (TF-IDF+SVM / zero-shot / keywords) → Anomaly Detection (regles + Luhn + mod97 + TVA croisee + dates metier) → HDFS (Clean + Curated) → MongoDB → API REST → Frontend CRM + Conformite
 - Auto-creation de case par SIRET dans Airflow
 - Datasets synthetiques multi-format (PDF+PNG+JPG) avec bruit OCR, anomalies, 5 types de documents
 - SIRET Luhn valides, IBAN mod97 valides
 
 **Ce qui manque (cahier des charges)** :
+
 - **Auto-remplissage formulaires** : le cahier exige que les formulaires CRM/Conformite soient pre-remplis par l'IA → pas encore fait
 - **Verification inter-documents** : le cahier exige de comparer SIRET entre facture et attestation d'un meme dossier → pas encore fait
 - Frontend : boutons sans handler, liens hardcodes, mock data, pas de viewer PDF
@@ -24,29 +26,29 @@
 
 ### P0 — Bloquant (DONE)
 
-- [x] **POST `/api/cases`** — Creer un dossier
-- [x] **PUT `/api/cases/{id}`** — Mettre a jour statut/infos
-- [x] **POST `/api/compliances`** — Creer un controle de conformite
-- [x] **PUT `/api/compliances/{id}`** — Mettre a jour decision
-- [x] **PUT `/api/documents/{id}`** — Corriger/valider un document
-- [x] **Validation ObjectId** sur tous les endpoints `/{id}`
+- [X] **POST `/api/cases`** — Creer un dossier
+- [X] **PUT `/api/cases/{id}`** — Mettre a jour statut/infos
+- [X] **POST `/api/compliances`** — Creer un controle de conformite
+- [X] **PUT `/api/compliances/{id}`** — Mettre a jour decision
+- [X] **PUT `/api/documents/{id}`** — Corriger/valider un document
+- [X] **Validation ObjectId** sur tous les endpoints `/{id}`
 
 ### P1 — Important (DONE)
 
-- [x] **GET `/api/documents/{id}/download`** — Telecharger depuis HDFS
-- [x] **Auto-creation de case** par SIRET dans Airflow
-- [x] **Pagination** sur GET `/api/documents`
-- [x] **Supprimer code mort** (models.py, formatters.py, extractorMetaData.py)
+- [X] **GET `/api/documents/{id}/download`** — Telecharger depuis HDFS
+- [X] **Auto-creation de case** par SIRET dans Airflow
+- [X] **Pagination** sur GET `/api/documents`
+- [X] **Supprimer code mort** (models.py, formatters.py, extractorMetaData.py)
 
 ### P2 — Nice to have (DONE)
 
-- [x] Variables d'environnement pour JWT_SECRET et credentials Airflow
-- [x] Modeles Pydantic dans les reponses de route
-- [x] Endpoint `/api/documents/{id}/metrics` OCR
+- [X] Variables d'environnement pour JWT_SECRET et credentials Airflow
+- [X] Modeles Pydantic dans les reponses de route
+- [X] Endpoint `/api/documents/{id}/metrics` OCR
 
 ### NOUVEAU — Endpoint auto-remplissage (cahier des charges)
 
-- [x] **GET `/api/cases/{id}/autofill`** — Agreger les donnees extraites de tous les docs du case
+- [X] **GET `/api/cases/{id}/autofill`** — Agreger les donnees extraites de tous les docs du case
   - Fichier : `backend/routes/cases.py`
   - Query tous les documents avec `case_id` correspondant
   - Retourner un objet structure :
@@ -147,15 +149,15 @@
 
 ### P0 — Bloquant
 
-- [ ] **Fixer URLs hardcodees** — DashboardPage et UploadPage ignorent `.env`
-- [ ] **Fixer `frontend/.env`** — `VITE_API_URL=http://127.0.0.1:8000` casse Docker
+- [X] **Fixer URLs hardcodees** — DashboardPage et UploadPage ignorent `.env`
+- [X] **Fixer `frontend/.env`** — `VITE_API_URL=http://127.0.0.1:8000` casse Docker
 
 ### P1 — Important
 
 - [ ] **`.dockerignore`** pour backend et frontend
-- [ ] **Logs Airflow** — Monter en volume
+- [X] **Logs Airflow** — Monter en volume
 - [ ] **Tests backend** — pytest pour routes CRUD
-- [x] **Tesseract + pdftoppm** dans Dockerfile backend (fait par DI2)
+- [X] **Tesseract + pdftoppm** dans Dockerfile backend (fait par DI2)
 
 ### P2 — Nice to have
 
@@ -170,21 +172,21 @@
 
 ### P0 (DONE)
 
-- [x] Multi-format output (PDF+PNG+JPG+JPEG)
-- [x] Generateur KBIS
-- [x] SIRET valides (Luhn)
-- [x] IBAN valides (mod97)
+- [X] Multi-format output (PDF+PNG+JPG+JPEG)
+- [X] Generateur KBIS
+- [X] SIRET valides (Luhn)
+- [X] IBAN valides (mod97)
 
 ### P1 (DONE)
 
-- [x] Anomalies pour devis, RIB, URSSAF
-- [x] Bruit OCR (noise.py)
-- [x] Dataset large (500+/type)
+- [X] Anomalies pour devis, RIB, URSSAF
+- [X] Bruit OCR (noise.py)
+- [X] Dataset large (500+/type)
 
 ### P2 (DONE)
 
-- [x] Variation layout + polices
-- [x] NER annotations BIO/IOB
+- [X] Variation layout + polices
+- [X] NER annotations BIO/IOB
 
 ---
 
@@ -194,22 +196,22 @@
 
 ### P0 (DONE)
 
-- [x] Classification : TF-IDF+SVM / zero-shot XLM-RoBERTa / keywords
-- [x] Tests classification TXT + PDF (5 types dont KBIS)
-- [x] Dependances ML (transformers, torch, scikit-learn, spacy, rapidfuzz)
+- [X] Classification : TF-IDF+SVM / zero-shot XLM-RoBERTa / keywords
+- [X] Tests classification TXT + PDF (5 types dont KBIS)
+- [X] Dependances ML (transformers, torch, scikit-learn, spacy, rapidfuzz)
 
 ### P1 (DONE)
 
-- [x] Script entrainement TF-IDF+SVM (`ia/classification/train.py`)
-- [x] Benchmark matrice de confusion + F1 (`ia/classification/benchmark.py`)
-- [x] NER spaCy fr_core_news_md (ORG, PER, LOC) + fusion regex
-- [x] Fuzzy matching rapidfuzz (seuil 75%) pour typos OCR
-- [x] Dates : DD/MM/YYYY, DD-MM-YYYY, "18 mars 2026" → YYYY-MM-DD
-- [x] Champs KBIS (denomination, forme_juridique, rcs, greffe, dirigeant, siren)
-- [x] Tests NER (`ia/nlp/tests/test_ner.py`)
-- [x] Validation croisee TVA/SIRET dans detector.py
-- [x] Validation dates metier (emission < echeance) dans detector.py
-- [x] spaCy dans Dockerfile backend
+- [X] Script entrainement TF-IDF+SVM (`ia/classification/train.py`)
+- [X] Benchmark matrice de confusion + F1 (`ia/classification/benchmark.py`)
+- [X] NER spaCy fr_core_news_md (ORG, PER, LOC) + fusion regex
+- [X] Fuzzy matching rapidfuzz (seuil 75%) pour typos OCR
+- [X] Dates : DD/MM/YYYY, DD-MM-YYYY, "18 mars 2026" → YYYY-MM-DD
+- [X] Champs KBIS (denomination, forme_juridique, rcs, greffe, dirigeant, siren)
+- [X] Tests NER (`ia/nlp/tests/test_ner.py`)
+- [X] Validation croisee TVA/SIRET dans detector.py
+- [X] Validation dates metier (emission < echeance) dans detector.py
+- [X] spaCy dans Dockerfile backend
 
 ### RESTE A FAIRE — Entrainement effectif
 
@@ -294,7 +296,6 @@ FS4 (fix URLs) ──→ FS3 (migration fetch→axios)
 - DI3 : tests anomaly detection + tester pipeline Docker
 
   Après-midi J1 — Features principales :
-
 - FS1 : endpoint download, auto-création case par SIRET
 - FS2 : refonte Dashboard/Upload (style + axios), CaseDetailsPage→API
 - FS3 : viewer PDF/image, boutons action (valider/rejeter/télécharger)
@@ -304,11 +305,11 @@ FS4 (fix URLs) ──→ FS3 (migration fetch→axios)
 - DI3 : Isolation Forest + script train, scoring d'anomalie
 
   Matin J2 — Finalisation + intégration :
-
 - FS1+FS2+FS3 : pagination, stats dynamiques, toastify, polish UX
 - FS4 : CI pipeline
 - DI1+DI2+DI3 : benchmark complet (matrice de confusion, F1), validation croisée TVA, test end-to-end Docker
-=======
+  =======
+
 ```
 PRIORITE 1 — Exigences cahier des charges manquantes :
   DI3 : verification inter-documents (detector.py)
@@ -328,4 +329,11 @@ PRIORITE 3 — Polish :
   DI3 : Isolation Forest, scoring
   FS4 : tests, dockerignore, logs
 ```
+
 >>>>>>> acae271a1c9ebfcdf68c561a9878c2e1ed40842d
+>>>>>>>
+>>>>>>
+>>>>>
+>>>>
+>>>
+>>
