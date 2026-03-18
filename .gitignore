@@ -46,9 +46,12 @@ airflow/webserver_config.py
 *.h5
 *.model
 *.weights
+*.joblib
 data/datasets/*.csv
 data/datasets/*.json
 data/datasets/*.pdf
+data/generated/
+ia/classification/model/
 
 # HDFS / Hadoop
 *.name

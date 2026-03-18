@@ -10,7 +10,8 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from pathlib import Path
 
-from pdf_utils import write_text_pdf
+from pdf_utils import parse_image_formats, write_all_formats
+from utils import generate_siret, invalidate_luhn_number
 
 try:
     from faker import Faker
@@ -56,6 +57,8 @@ class Certificate:
     issue_date: str
     expiry_date: str
     organism: str
+    scenario: str
+    anomalies: list[str]
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -72,10 +75,38 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--seed", type=int, default=None, help="Optional random seed.")
     parser.add_argument(
+        "--anomaly-rate",
+        type=float,
+        default=0.2,
+        help="Share of certificates containing one or more anomalies.",
+    )
+    parser.add_argument(
         "--format",
         choices=["both", "json", "txt"],
         default="both",
-        help="Structured output format. A PDF is always generated too.",
+        help="Structured output format.",
+    )
+    parser.add_argument(
+        "--image-formats",
+        default="pdf,png,jpg",
+        help="Comma-separated rendered formats. Example: pdf,png,jpg,jpeg",
+    )
+    parser.add_argument(
+        "--noise-level",
+        type=int,
+        choices=[0, 1, 2, 3],
+        default=0,
+        help="OCR noise level for rendered PNG/JPG/JPEG images.",
+    )
+    parser.add_argument(
+        "--fixed-layout",
+        action="store_true",
+        help="Disable layout variation in rendered outputs.",
+    )
+    parser.add_argument(
+        "--fixed-fonts",
+        action="store_true",
+        help="Disable font variation in rendered outputs.",
     )
     return parser
 
@@ -99,30 +130,47 @@ def random_company(fake: Faker | None, rng: random.Random) -> str:
     return f"{rng.choice(LAST_NAMES)} {rng.choice(COMPANY_SUFFIXES)}"
 
 
-def generate_siret(rng: random.Random) -> str:
-    return "".join(str(rng.randint(0, 9)) for _ in range(14))
-
-
 def generate_naf_code(rng: random.Random) -> str:
     return f"{rng.randint(1000, 9999)}{rng.choice(['A', 'B', 'C', 'D'])}"
 
 
-def build_certificate(index: int, fake: Faker | None, rng: random.Random) -> Certificate:
+def choose_scenario(rng: random.Random, anomaly_rate: float) -> tuple[str, list[str]]:
+    if rng.random() > anomaly_rate:
+        return "legitime", []
+    scenarios = [
+        ("siret_invalide", ["SIRET invalide"]),
+        ("date_expiree", ["Date d'expiration depassee"]),
+    ]
+    return rng.choice(scenarios)
+
+
+def build_certificate(index: int, fake: Faker | None, rng: random.Random, anomaly_rate: float) -> Certificate:
     issue_date = date.today() - timedelta(days=rng.randint(1, 120))
     expiry_date = issue_date + timedelta(days=180)
+    _, siret = generate_siret(rng)
+    scenario, anomalies = choose_scenario(rng, anomaly_rate)
+
+    if scenario == "siret_invalide":
+        siret = invalidate_luhn_number(siret)
+    if scenario == "date_expiree":
+        expiry_date = issue_date - timedelta(days=rng.randint(1, 30))
+
     return Certificate(
         certificate_id=f"URS-2026-{index:05d}",
         company=random_company(fake, rng),
         address=random_address(fake, rng),
-        siret=generate_siret(rng),
+        siret=siret,
         naf_code=generate_naf_code(rng),
         issue_date=issue_date.isoformat(),
         expiry_date=expiry_date.isoformat(),
         organism=rng.choice(URSSAF_ORGANISMS),
+        scenario=scenario,
+        anomalies=anomalies,
     )
 
 
 def certificate_to_text(certificate: Certificate) -> str:
+    anomalies = ", ".join(certificate.anomalies) if certificate.anomalies else "Aucune"
     return textwrap.dedent(
         f"""\
         ATTESTATION DE VIGILANCE URSSAF
@@ -139,6 +187,8 @@ def certificate_to_text(certificate: Certificate) -> str:
 
         Cette attestation certifie que l'entreprise est a jour
         de ses obligations de declaration et de paiement des cotisations sociales.
+        Scenario dataset : {certificate.scenario}
+        Anomalies attendues : {anomalies}
         """
     ).strip() + "\n"
 
@@ -150,12 +200,24 @@ def certificate_to_dict(certificate: Certificate) -> dict:
         "siret": certificate.siret,
         "issue_date": certificate.issue_date,
         "expiry_date": certificate.expiry_date,
+        "scenario": certificate.scenario,
+        "anomalies": certificate.anomalies,
     }
 
 
-def write_certificate(certificate: Certificate, output_dir: Path, output_format: str) -> None:
+def write_certificate(
+    certificate: Certificate,
+    output_dir: Path,
+    output_format: str,
+    image_formats: tuple[str, ...],
+    noise_level: int,
+    rng: random.Random,
+    layout_variation: bool,
+    font_variation: bool,
+) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     stem = certificate.certificate_id.lower()
+    txt_content = certificate_to_text(certificate)
 
     if output_format in {"both", "json"}:
         (output_dir / f"{stem}.json").write_text(
@@ -164,12 +226,17 @@ def write_certificate(certificate: Certificate, output_dir: Path, output_format:
         )
 
     if output_format in {"both", "txt"}:
-        txt_content = certificate_to_text(certificate)
         (output_dir / f"{stem}.txt").write_text(txt_content, encoding="utf-8")
-    else:
-        txt_content = certificate_to_text(certificate)
 
-    write_text_pdf(output_dir / f"{stem}.pdf", txt_content)
+    write_all_formats(
+        output_dir / stem,
+        txt_content,
+        image_formats,
+        noise_level=noise_level,
+        rng=rng,
+        layout_variation=layout_variation,
+        font_variation=font_variation,
+    )
 
 
 def main() -> None:
@@ -178,17 +245,37 @@ def main() -> None:
 
     rng = random.Random(args.seed)
     fake = get_faker()
+    image_formats = parse_image_formats(args.image_formats)
+    scenarios: list[str] = []
     if fake is not None and args.seed is not None:
         Faker.seed(args.seed)
 
     for index in range(1, args.count + 1):
-        certificate = build_certificate(index=index, fake=fake, rng=rng)
-        write_certificate(certificate, args.output_dir, args.format)
+        certificate = build_certificate(index=index, fake=fake, rng=rng, anomaly_rate=args.anomaly_rate)
+        write_certificate(
+            certificate,
+            args.output_dir,
+            args.format,
+            image_formats,
+            args.noise_level,
+            rng,
+            not args.fixed_layout,
+            not args.fixed_fonts,
+        )
+        scenarios.append(certificate.scenario)
 
+    scenario_counts: dict[str, int] = {}
+    for scenario in scenarios:
+        scenario_counts[scenario] = scenario_counts.get(scenario, 0) + 1
     summary = {
         "count": args.count,
         "output_dir": str(args.output_dir),
         "format": args.format,
+        "image_formats": list(image_formats),
+        "noise_level": args.noise_level,
+        "layout_variation": not args.fixed_layout,
+        "font_variation": not args.fixed_fonts,
+        "scenarios": scenario_counts,
     }
     (args.output_dir / "summary.json").write_text(
         json.dumps(summary, ensure_ascii=False, indent=2) + "\n",

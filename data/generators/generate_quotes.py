@@ -6,12 +6,12 @@ import argparse
 import json
 import random
 import textwrap
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from datetime import date, timedelta
 from pathlib import Path
 from typing import List
 
-from pdf_utils import write_text_pdf
+from pdf_utils import parse_image_formats, write_all_formats
 
 try:
     from faker import Faker
@@ -74,6 +74,8 @@ class Quote:
     total_tva: float
     total_ttc: float
     line_items: List[LineItem]
+    scenario: str
+    anomalies: List[str]
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -90,10 +92,38 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--seed", type=int, default=None, help="Optional random seed.")
     parser.add_argument(
+        "--anomaly-rate",
+        type=float,
+        default=0.2,
+        help="Share of quotes containing one or more anomalies.",
+    )
+    parser.add_argument(
         "--format",
         choices=["both", "json", "txt"],
         default="both",
-        help="Structured output format. A PDF is always generated too.",
+        help="Structured output format.",
+    )
+    parser.add_argument(
+        "--image-formats",
+        default="pdf,png,jpg",
+        help="Comma-separated rendered formats. Example: pdf,png,jpg,jpeg",
+    )
+    parser.add_argument(
+        "--noise-level",
+        type=int,
+        choices=[0, 1, 2, 3],
+        default=0,
+        help="OCR noise level for rendered PNG/JPG/JPEG images.",
+    )
+    parser.add_argument(
+        "--fixed-layout",
+        action="store_true",
+        help="Disable layout variation in rendered outputs.",
+    )
+    parser.add_argument(
+        "--fixed-fonts",
+        action="store_true",
+        help="Disable font variation in rendered outputs.",
     )
     return parser
 
@@ -138,7 +168,19 @@ def build_line_items(rng: random.Random) -> List[LineItem]:
     return items
 
 
-def build_quote(index: int, fake: Faker | None, rng: random.Random) -> Quote:
+def choose_scenario(rng: random.Random, anomaly_rate: float) -> tuple[str, List[str]]:
+    if rng.random() > anomaly_rate:
+        return "legitime", []
+
+    scenarios = [
+        ("validite_depassee", ["Date de validite incoherente"]),
+        ("montant_ttc_incoherent", ["Montant TTC incoherent"]),
+        ("montants_incoherents", ["Montant HT incoherent", "Montant TTC incoherent"]),
+    ]
+    return rng.choice(scenarios)
+
+
+def build_quote(index: int, fake: Faker | None, rng: random.Random, anomaly_rate: float) -> Quote:
     issue_date = date.today() - timedelta(days=rng.randint(1, 90))
     valid_until = issue_date + timedelta(days=rng.randint(10, 45))
     tva_rate = rng.choice(TVA_RATES)
@@ -146,6 +188,15 @@ def build_quote(index: int, fake: Faker | None, rng: random.Random) -> Quote:
     total_ht = round(sum(item.total_ht for item in line_items), 2)
     total_tva = round(total_ht * tva_rate, 2)
     total_ttc = round(total_ht + total_tva, 2)
+    scenario, anomalies = choose_scenario(rng, anomaly_rate)
+
+    if scenario == "validite_depassee":
+        valid_until = issue_date - timedelta(days=rng.randint(1, 15))
+    if scenario == "montant_ttc_incoherent":
+        total_ttc = round(total_ttc + rng.uniform(15.0, 180.0), 2)
+    if scenario == "montants_incoherents":
+        total_ht = round(total_ht + rng.uniform(10.0, 140.0), 2)
+        total_ttc = round(total_ttc + rng.uniform(20.0, 220.0), 2)
 
     return Quote(
         quote_number=f"DEV-2026-{index:04d}",
@@ -160,6 +211,8 @@ def build_quote(index: int, fake: Faker | None, rng: random.Random) -> Quote:
         total_tva=total_tva,
         total_ttc=total_ttc,
         line_items=line_items,
+        scenario=scenario,
+        anomalies=anomalies,
     )
 
 
@@ -176,6 +229,7 @@ def quote_to_text(quote: Quote) -> str:
         f"- {item.description} | Qt: {item.quantity} | PU HT: {format_eur(item.unit_price_ht)} | Total HT: {format_eur(item.total_ht)}"
         for item in quote.line_items
     )
+    anomalies = ", ".join(quote.anomalies) if quote.anomalies else "Aucune"
     return textwrap.dedent(
         f"""\
         DEVIS
@@ -195,6 +249,8 @@ def quote_to_text(quote: Quote) -> str:
         TVA ({format_percent(quote.tva_rate)}%) : {format_eur(quote.total_tva)}
         Montant TTC : {format_eur(quote.total_ttc)}
         Devis valable sous reserve d'acceptation.
+        Scenario dataset : {quote.scenario}
+        Anomalies attendues : {anomalies}
         """
     ).strip() + "\n"
 
@@ -206,12 +262,24 @@ def quote_to_dict(quote: Quote) -> dict:
         "valid_until": quote.valid_until,
         "total_ht": quote.total_ht,
         "total_ttc": quote.total_ttc,
+        "scenario": quote.scenario,
+        "anomalies": quote.anomalies,
     }
 
 
-def write_quote(quote: Quote, output_dir: Path, output_format: str) -> None:
+def write_quote(
+    quote: Quote,
+    output_dir: Path,
+    output_format: str,
+    image_formats: tuple[str, ...],
+    noise_level: int,
+    rng: random.Random,
+    layout_variation: bool,
+    font_variation: bool,
+) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     stem = quote.quote_number.lower()
+    txt_content = quote_to_text(quote)
 
     if output_format in {"both", "json"}:
         (output_dir / f"{stem}.json").write_text(
@@ -220,12 +288,17 @@ def write_quote(quote: Quote, output_dir: Path, output_format: str) -> None:
         )
 
     if output_format in {"both", "txt"}:
-        txt_content = quote_to_text(quote)
         (output_dir / f"{stem}.txt").write_text(txt_content, encoding="utf-8")
-    else:
-        txt_content = quote_to_text(quote)
 
-    write_text_pdf(output_dir / f"{stem}.pdf", txt_content)
+    write_all_formats(
+        output_dir / stem,
+        txt_content,
+        image_formats,
+        noise_level=noise_level,
+        rng=rng,
+        layout_variation=layout_variation,
+        font_variation=font_variation,
+    )
 
 
 def main() -> None:
@@ -234,20 +307,38 @@ def main() -> None:
 
     rng = random.Random(args.seed)
     fake = get_faker()
+    image_formats = parse_image_formats(args.image_formats)
     if fake is not None and args.seed is not None:
         Faker.seed(args.seed)
 
     quotes: List[Quote] = []
     for index in range(1, args.count + 1):
-        quote = build_quote(index=index, fake=fake, rng=rng)
-        write_quote(quote, args.output_dir, args.format)
+        quote = build_quote(index=index, fake=fake, rng=rng, anomaly_rate=args.anomaly_rate)
+        write_quote(
+            quote,
+            args.output_dir,
+            args.format,
+            image_formats,
+            args.noise_level,
+            rng,
+            not args.fixed_layout,
+            not args.fixed_fonts,
+        )
         quotes.append(quote)
 
     summary = {
         "count": len(quotes),
         "output_dir": str(args.output_dir),
         "format": args.format,
+        "image_formats": list(image_formats),
+        "noise_level": args.noise_level,
+        "layout_variation": not args.fixed_layout,
+        "font_variation": not args.fixed_fonts,
+        "scenarios": {},
     }
+    for quote in quotes:
+        summary["scenarios"].setdefault(quote.scenario, 0)
+        summary["scenarios"][quote.scenario] += 1
     (args.output_dir / "summary.json").write_text(
         json.dumps(summary, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",

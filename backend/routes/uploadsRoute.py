@@ -6,7 +6,9 @@ import httpx
 from bson import ObjectId
 
 from config.database import document_collection
-from params import HDFS_WEBHDFS_URL, AIRFLOW_BASE_URL
+from params import HDFS_WEBHDFS_URL, AIRFLOW_BASE_URL, AIRFLOW_USERNAME, AIRFLOW_PASSWORD
+
+from schemas.upload import UploadResponse
 
 _router = APIRouter()
 
@@ -53,14 +55,14 @@ async def _trigger_dag(document_id: str):
         resp = await client.post(
             url,
             json={"conf": {"document_id": document_id}},
-            auth=("admin", "admin"),
+            auth=(AIRFLOW_USERNAME, AIRFLOW_PASSWORD),
             headers={"Content-Type": "application/json"},
             timeout=15,
         )
         resp.raise_for_status()
         
 @_router.post(
-    "/api/upload",
+    "/api/upload", response_model=UploadResponse,
     openapi_extra={
         "requestBody": {
             "content": {
