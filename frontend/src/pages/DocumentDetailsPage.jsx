@@ -23,6 +23,14 @@ const fallbackDocumentData = {
   caseId: null,
 };
 
+const getFileType = (filename) => {
+  if (!filename) return "unknown";
+  const ext = filename.split(".").pop().toLowerCase();
+  if (ext === "pdf") return "pdf";
+  if (["jpg", "jpeg", "png", "gif", "webp", "bmp"].includes(ext)) return "image";
+  return "other";
+};
+
 const normalizeDocument = (item) => ({
   id: item.id || item._id || "N/A",
   type: item.type || item.documentType || item.document_type || "Document",
@@ -33,7 +41,7 @@ const normalizeDocument = (item) => ({
     item.confidence ||
     item.confidenceScore ||
     item.confidence_score ||
-    "94%",
+    "N/A",
   status: item.status || item.analysisStatus || "À revoir",
   updatedAt: item.updatedAt || item.updated_at || "Aujourd'hui",
   caseId: item.caseId || item.case_id || null,
@@ -77,13 +85,6 @@ const getConfidenceVariant = (confidence) => {
   if (value >= 95) return "success";
   if (value >= 85) return "warning";
   return "danger";
-};
-
-const getFileType = (filename) => {
-  const ext = (filename || "").split(".").pop().toLowerCase();
-  if (ext === "pdf") return "pdf";
-  if (["jpg", "jpeg", "png", "gif", "webp", "bmp"].includes(ext)) return "image";
-  return "other";
 };
 
 const getAnomalyClasses = (level) => {
@@ -141,10 +142,6 @@ export const DocumentDetailsPage = () => {
         setError(
           "Impossible de charger le document depuis l'API. Affichage des données de démonstration.",
         );
-        setDocumentData(fallbackDocumentData);
-        setFields(fallbackExtractedFields);
-        setAnomalies(fallbackDocumentAnomalies);
-        setTimeline(fallbackTimeline);
       } finally {
         setLoading(false);
       }
@@ -197,6 +194,19 @@ export const DocumentDetailsPage = () => {
     } finally {
       setActionLoading("");
     }
+  };
+
+  const handleExportJSON = () => {
+    const json = JSON.stringify(fields, null, 2);
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `extracted-fields-${documentId}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
   };
 
   const backLink = documentData.caseId
@@ -313,14 +323,12 @@ export const DocumentDetailsPage = () => {
                         {documentData.companyName}
                       </p>
                     </div>
-
                     <div className="rounded-2xl bg-slate-50 p-4">
                       <p className="text-sm text-slate-500">Document</p>
                       <p className="mt-1 font-semibold text-slate-900">
                         {documentData.fileName}
                       </p>
                     </div>
-
                     <div className="rounded-2xl bg-slate-50 p-4">
                       <p className="text-sm text-slate-500">Dernière analyse</p>
                       <p className="mt-1 font-semibold text-slate-900">
@@ -363,16 +371,7 @@ export const DocumentDetailsPage = () => {
                 subtitle="Valeurs détectées automatiquement sur le document."
                 rightElement={
                   <button
-                    onClick={() => {
-                      const json = JSON.stringify(fields, null, 2);
-                      const blob = new Blob([json], { type: "application/json" });
-                      const url = URL.createObjectURL(blob);
-                      const a = document.createElement("a");
-                      a.href = url;
-                      a.download = `extracted-fields-${documentId}.json`;
-                      a.click();
-                      URL.revokeObjectURL(url);
-                    }}
+                    onClick={handleExportJSON}
                     className="rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
                   >
                     Export JSON
@@ -405,7 +404,6 @@ export const DocumentDetailsPage = () => {
                           </p>
                         )}
                       </div>
-
                       <StatusBadge
                         label={`Confiance ${field.confidence || "90%"}`}
                         variant={getConfidenceVariant(field.confidence || "90%")}
@@ -425,14 +423,15 @@ export const DocumentDetailsPage = () => {
                       <div className="flex flex-col items-center">
                         <div
                           className={`h-3.5 w-3.5 rounded-full ${
-                            item.status === "Terminé" ? "bg-emerald-500" : "bg-amber-500"
+                            item.status === "completed" || item.status === "Terminé"
+                              ? "bg-emerald-500"
+                              : "bg-amber-500"
                           }`}
                         />
                         {index < timeline.length - 1 && (
                           <div className="mt-2 h-12 w-px bg-slate-200" />
                         )}
                       </div>
-
                       <div className="pb-3">
                         <p className="font-semibold text-slate-900">{item.step}</p>
                         <p className="mt-1 text-sm text-slate-500">{item.date}</p>
