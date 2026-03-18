@@ -7,10 +7,11 @@ import json
 import random
 import textwrap
 from dataclasses import dataclass
+from datetime import date, timedelta
 from pathlib import Path
 
 from pdf_utils import parse_image_formats, write_all_formats
-from utils import generate_bic, generate_french_rib, invalidate_bic, invalidate_iban
+from utils import generate_siren as generate_valid_siren, generate_siret as generate_valid_siret
 
 try:
     from faker import Faker
@@ -19,48 +20,60 @@ except ImportError:
 
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
-DEFAULT_OUTPUT_DIR = ROOT_DIR / "data" / "generated" / "pdfs" / "ribs"
-BANKS = ["Societe Generale", "BNP Paribas", "Credit Agricole", "La Banque Postale"]
+DEFAULT_OUTPUT_DIR = ROOT_DIR / "data" / "generated" / "pdfs" / "kbis"
+
 COMPANY_SUFFIXES = ["SARL", "SAS", "EURL", "SCI", "SA"]
-LAST_NAMES = ["Martin", "Bernard", "Robert", "Durand", "Dubois", "Moreau", "Simon"]
+LEGAL_FORMS = [
+    "Societe a responsabilite limitee (SARL)",
+    "Societe par actions simplifiee (SAS)",
+    "Entreprise unipersonnelle a responsabilite limitee (EURL)",
+    "Societe anonyme (SA)",
+    "Societe civile immobiliere (SCI)",
+]
+LAST_NAMES = ["Martin", "Bernard", "Petit", "Robert", "Richard", "Durand", "Dubois", "Moreau", "Simon"]
+FIRST_NAMES = ["Camille", "Nora", "Sami", "Lea", "Yanis", "Sarah", "Julie", "Ines", "Thomas"]
+GREFFES = ["Paris", "Lyon", "Lille", "Bordeaux", "Nantes", "Toulouse", "Rennes"]
 CITIES = [
     ("Paris", "75009"),
     ("Lyon", "69003"),
+    ("Marseille", "13008"),
     ("Lille", "59800"),
     ("Bordeaux", "33000"),
     ("Nantes", "44000"),
     ("Toulouse", "31000"),
+    ("Rennes", "35000"),
 ]
 STREETS = [
     "12 rue de la Republique",
     "8 avenue Victor Hugo",
     "25 boulevard Voltaire",
+    "3 rue des Lilas",
     "17 allee des Tilleuls",
     "42 quai de la Gare",
     "9 place du Marche",
+    "66 rue Nationale",
 ]
 
 
 @dataclass
-class Rib:
-    account_holder: str
-    bank_name: str
-    bank_address: str
-    iban: str
-    bic: str
-    bank_code: str
-    branch_code: str
-    account_number: str
-    rib_key: str
-    scenario: str
-    anomalies: list[str]
+class Kbis:
+    denomination: str
+    forme_juridique: str
+    capital_social: int
+    adresse_siege: str
+    siren: str
+    siret: str
+    rcs: str
+    greffe: str
+    date_immatriculation: str
+    dirigeant: str
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Generate synthetic RIB documents for OCR and extraction tests."
+        description="Generate synthetic KBIS documents for OCR and extraction tests."
     )
-    parser.add_argument("-n", "--count", type=int, default=10, help="Number of RIBs.")
+    parser.add_argument("-n", "--count", type=int, default=10, help="Number of KBIS documents.")
     parser.add_argument(
         "-o",
         "--output-dir",
@@ -69,12 +82,6 @@ def build_parser() -> argparse.ArgumentParser:
         help="Output directory.",
     )
     parser.add_argument("--seed", type=int, default=None, help="Optional random seed.")
-    parser.add_argument(
-        "--anomaly-rate",
-        type=float,
-        default=0.2,
-        help="Share of RIBs containing one or more anomalies.",
-    )
     parser.add_argument(
         "--format",
         choices=["both", "json", "txt"],
@@ -125,85 +132,82 @@ def random_company(fake: Faker | None, rng: random.Random) -> str:
     return f"{rng.choice(LAST_NAMES)} {rng.choice(COMPANY_SUFFIXES)}"
 
 
-def generate_digits(rng: random.Random, length: int) -> str:
-    return "".join(str(rng.randint(0, 9)) for _ in range(length))
+def random_manager(fake: Faker | None, rng: random.Random) -> str:
+    if fake is not None:
+        return fake.name()
+    return f"{rng.choice(FIRST_NAMES)} {rng.choice(LAST_NAMES)}"
 
 
-def choose_scenario(rng: random.Random, anomaly_rate: float) -> tuple[str, list[str]]:
-    if rng.random() > anomaly_rate:
-        return "legitime", []
-    scenarios = [
-        ("iban_invalide", ["IBAN invalide"]),
-        ("bic_incorrect", ["BIC incorrect"]),
-        ("multi_anomalies", ["IBAN invalide", "BIC incorrect"]),
-    ]
-    return rng.choice(scenarios)
+def format_capital(amount: int) -> str:
+    return f"{amount:,} EUR".replace(",", " ")
 
 
-def build_rib(fake: Faker | None, rng: random.Random, anomaly_rate: float) -> Rib:
-    scenario, anomalies = choose_scenario(rng, anomaly_rate)
-    rib_details = generate_french_rib(rng)
-    iban = rib_details["iban"]
-    bic = generate_bic(rng)
+def build_kbis(fake: Faker | None, rng: random.Random) -> Kbis:
+    denomination = random_company(fake, rng)
+    forme_juridique = rng.choice(LEGAL_FORMS)
+    capital_social = rng.randrange(1000, 500001, 500)
+    adresse_siege = random_address(fake, rng)
+    siren = generate_valid_siren(rng)
+    _, siret = generate_valid_siret(rng, siren=siren)
+    greffe = rng.choice(GREFFES)
+    immatriculation = date.today() - timedelta(days=rng.randint(180, 5000))
+    rcs = f"RCS {greffe} {siren}"
+    dirigeant = random_manager(fake, rng)
 
-    if scenario in {"iban_invalide", "multi_anomalies"}:
-        iban = invalidate_iban(iban)
-    if scenario in {"bic_incorrect", "multi_anomalies"}:
-        bic = invalidate_bic(bic)
-
-    return Rib(
-        account_holder=random_company(fake, rng),
-        bank_name=rng.choice(BANKS),
-        bank_address=random_address(fake, rng),
-        iban=iban,
-        bic=bic,
-        bank_code=rib_details["bank_code"],
-        branch_code=rib_details["branch_code"],
-        account_number=rib_details["account_number"],
-        rib_key=rib_details["rib_key"],
-        scenario=scenario,
-        anomalies=anomalies,
+    return Kbis(
+        denomination=denomination,
+        forme_juridique=forme_juridique,
+        capital_social=capital_social,
+        adresse_siege=adresse_siege,
+        siren=siren,
+        siret=siret,
+        rcs=rcs,
+        greffe=greffe,
+        date_immatriculation=immatriculation.isoformat(),
+        dirigeant=dirigeant,
     )
 
 
-def rib_to_text(rib: Rib) -> str:
-    anomalies = ", ".join(rib.anomalies) if rib.anomalies else "Aucune"
+def kbis_to_text(kbis: Kbis) -> str:
     return textwrap.dedent(
         f"""\
-        RELEVE D'IDENTITE BANCAIRE
+        EXTRAIT KBIS
 
-        Titulaire du compte : {rib.account_holder}
-        Banque : {rib.bank_name}
-        Adresse de la banque : {rib.bank_address}
+        Denomination : {kbis.denomination}
+        Forme juridique : {kbis.forme_juridique}
+        Capital social : {format_capital(kbis.capital_social)}
+        Adresse du siege : {kbis.adresse_siege}
 
-        IBAN : {rib.iban}
-        BIC : {rib.bic}
-        Code banque : {rib.bank_code}
-        Code guichet : {rib.branch_code}
-        Numero de compte : {rib.account_number}
-        Cle RIB : {rib.rib_key}
+        SIREN : {kbis.siren}
+        SIRET : {kbis.siret}
+        RCS : {kbis.rcs}
+        Greffe : {kbis.greffe}
+        Date d'immatriculation : {kbis.date_immatriculation}
+        Dirigeant : {kbis.dirigeant}
 
-        Document fourni pour les virements fournisseurs.
-        Scenario dataset : {rib.scenario}
-        Anomalies attendues : {anomalies}
+        Document certifiant l'existence juridique de l'entreprise.
         """
     ).strip() + "\n"
 
 
-def rib_to_dict(rib: Rib) -> dict:
+def kbis_to_dict(kbis: Kbis) -> dict:
     return {
-        "account_holder": rib.account_holder,
-        "bank_name": rib.bank_name,
-        "iban": rib.iban,
-        "bic": rib.bic,
-        "scenario": rib.scenario,
-        "anomalies": rib.anomalies,
+        "denomination": kbis.denomination,
+        "forme_juridique": kbis.forme_juridique,
+        "capital_social": kbis.capital_social,
+        "adresse_siege": kbis.adresse_siege,
+        "siren": kbis.siren,
+        "siret": kbis.siret,
+        "rcs": kbis.rcs,
+        "greffe": kbis.greffe,
+        "date_immatriculation": kbis.date_immatriculation,
+        "dirigeant": kbis.dirigeant,
     }
 
 
-def write_rib(
+def write_kbis(
     index: int,
-    rib: Rib,
+    kbis: Kbis,
     output_dir: Path,
     output_format: str,
     image_formats: tuple[str, ...],
@@ -213,12 +217,12 @@ def write_rib(
     font_variation: bool,
 ) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
-    stem = f"rib-{index:04d}"
-    txt_content = rib_to_text(rib)
+    stem = f"kbis-{index:04d}"
+    txt_content = kbis_to_text(kbis)
 
     if output_format in {"both", "json"}:
         (output_dir / f"{stem}.json").write_text(
-            json.dumps(rib_to_dict(rib), ensure_ascii=False, indent=2) + "\n",
+            json.dumps(kbis_to_dict(kbis), ensure_ascii=False, indent=2) + "\n",
             encoding="utf-8",
         )
 
@@ -243,15 +247,14 @@ def main() -> None:
     rng = random.Random(args.seed)
     fake = get_faker()
     image_formats = parse_image_formats(args.image_formats)
-    scenarios: list[str] = []
     if fake is not None and args.seed is not None:
         Faker.seed(args.seed)
 
     for index in range(1, args.count + 1):
-        rib = build_rib(fake=fake, rng=rng, anomaly_rate=args.anomaly_rate)
-        write_rib(
+        kbis = build_kbis(fake=fake, rng=rng)
+        write_kbis(
             index=index,
-            rib=rib,
+            kbis=kbis,
             output_dir=args.output_dir,
             output_format=args.format,
             image_formats=image_formats,
@@ -260,11 +263,7 @@ def main() -> None:
             layout_variation=not args.fixed_layout,
             font_variation=not args.fixed_fonts,
         )
-        scenarios.append(rib.scenario)
 
-    scenario_counts: dict[str, int] = {}
-    for scenario in scenarios:
-        scenario_counts[scenario] = scenario_counts.get(scenario, 0) + 1
     summary = {
         "count": args.count,
         "output_dir": str(args.output_dir),
@@ -273,7 +272,6 @@ def main() -> None:
         "noise_level": args.noise_level,
         "layout_variation": not args.fixed_layout,
         "font_variation": not args.fixed_fonts,
-        "scenarios": scenario_counts,
     }
     (args.output_dir / "summary.json").write_text(
         json.dumps(summary, ensure_ascii=False, indent=2) + "\n",

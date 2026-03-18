@@ -11,7 +11,8 @@ from datetime import date, timedelta
 from pathlib import Path
 from typing import List
 
-from pdf_utils import write_text_pdf
+from pdf_utils import parse_image_formats, write_all_formats
+from utils import generate_french_vat_from_siren, generate_siret
 
 try:
     from faker import Faker
@@ -145,7 +146,29 @@ def build_parser() -> argparse.ArgumentParser:
         "--format",
         choices=["both", "json", "txt"],
         default="both",
-        help="Structured output format. A PDF is always generated too.",
+        help="Structured output format.",
+    )
+    parser.add_argument(
+        "--image-formats",
+        default="pdf,png,jpg",
+        help="Comma-separated rendered formats. Example: pdf,png,jpg,jpeg",
+    )
+    parser.add_argument(
+        "--noise-level",
+        type=int,
+        choices=[0, 1, 2, 3],
+        default=0,
+        help="OCR noise level for rendered PNG/JPG/JPEG images.",
+    )
+    parser.add_argument(
+        "--fixed-layout",
+        action="store_true",
+        help="Disable layout variation in rendered outputs.",
+    )
+    parser.add_argument(
+        "--fixed-fonts",
+        action="store_true",
+        help="Disable font variation in rendered outputs.",
     )
     return parser
 
@@ -155,15 +178,6 @@ def get_faker() -> Faker | None:
         return None
     fake = Faker("fr_FR")
     return fake
-
-
-def generate_siret(rng: random.Random) -> str:
-    return "".join(str(rng.randint(0, 9)) for _ in range(14))
-
-
-def generate_vat_from_siren(siret: str, rng: random.Random) -> str:
-    key = rng.randint(10, 99)
-    return f"FR{key}{siret[:9]}"
 
 
 def random_address(fake: Faker | None, rng: random.Random) -> str:
@@ -217,10 +231,10 @@ def choose_scenario(rng: random.Random, anomaly_rate: float) -> tuple[str, List[
 def build_invoice(index: int, fake: Faker | None, rng: random.Random, anomaly_rate: float) -> Invoice:
     supplier_name = random_company(fake, rng)
     customer_name = random_contact_company(rng)
-    supplier_siret = generate_siret(rng)
-    customer_siret = generate_siret(rng)
-    supplier_vat = generate_vat_from_siren(supplier_siret, rng)
-    customer_vat = generate_vat_from_siren(customer_siret, rng)
+    _, supplier_siret = generate_siret(rng)
+    _, customer_siret = generate_siret(rng)
+    supplier_vat = generate_french_vat_from_siren(supplier_siret[:9])
+    customer_vat = generate_french_vat_from_siren(customer_siret[:9])
     issue_date = date.today() - timedelta(days=rng.randint(1, 120))
     payment_terms = rng.choice(PAYMENT_TERMS)
     due_date = issue_date + timedelta(days=payment_terms)
@@ -234,7 +248,7 @@ def build_invoice(index: int, fake: Faker | None, rng: random.Random, anomaly_ra
     scenario, anomalies = choose_scenario(rng, anomaly_rate)
 
     if scenario in {"siret_incoherent", "multi_anomalies"}:
-        customer_siret = generate_siret(rng)
+        _, customer_siret = generate_siret(rng)
     if scenario == "tva_incoherente":
         total_tva = round(total_tva + rng.uniform(7.0, 150.0), 2)
     if scenario == "date_echeance_depassee":
@@ -323,9 +337,19 @@ def invoice_to_dict(invoice: Invoice) -> dict:
     return payload
 
 
-def write_invoice(invoice: Invoice, output_dir: Path, output_format: str) -> None:
+def write_invoice(
+    invoice: Invoice,
+    output_dir: Path,
+    output_format: str,
+    image_formats: tuple[str, ...],
+    noise_level: int,
+    rng: random.Random,
+    layout_variation: bool,
+    font_variation: bool,
+) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     stem = invoice.invoice_number.lower()
+    txt_content = invoice_to_text(invoice)
 
     if output_format in {"both", "json"}:
         json_path = output_dir / f"{stem}.json"
@@ -336,12 +360,17 @@ def write_invoice(invoice: Invoice, output_dir: Path, output_format: str) -> Non
 
     if output_format in {"both", "txt"}:
         txt_path = output_dir / f"{stem}.txt"
-        txt_content = invoice_to_text(invoice)
         txt_path.write_text(txt_content, encoding="utf-8")
-    else:
-        txt_content = invoice_to_text(invoice)
 
-    write_text_pdf(output_dir / f"{stem}.pdf", txt_content)
+    write_all_formats(
+        output_dir / stem,
+        txt_content,
+        image_formats,
+        noise_level=noise_level,
+        rng=rng,
+        layout_variation=layout_variation,
+        font_variation=font_variation,
+    )
 
 
 def main() -> None:
@@ -350,19 +379,33 @@ def main() -> None:
 
     rng = random.Random(args.seed)
     fake = get_faker()
+    image_formats = parse_image_formats(args.image_formats)
     if fake is not None and args.seed is not None:
         Faker.seed(args.seed)
 
     invoices: List[Invoice] = []
     for index in range(1, args.count + 1):
         invoice = build_invoice(index=index, fake=fake, rng=rng, anomaly_rate=args.anomaly_rate)
-        write_invoice(invoice, args.output_dir, args.format)
+        write_invoice(
+            invoice,
+            args.output_dir,
+            args.format,
+            image_formats,
+            args.noise_level,
+            rng,
+            not args.fixed_layout,
+            not args.fixed_fonts,
+        )
         invoices.append(invoice)
 
     summary = {
         "count": len(invoices),
         "output_dir": str(args.output_dir),
         "format": args.format,
+        "image_formats": list(image_formats),
+        "noise_level": args.noise_level,
+        "layout_variation": not args.fixed_layout,
+        "font_variation": not args.fixed_fonts,
         "scenarios": {},
     }
     for invoice in invoices:
