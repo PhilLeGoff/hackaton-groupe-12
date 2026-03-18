@@ -12,6 +12,8 @@ from datetime import date, timedelta
 from pathlib import Path
 from typing import List
 
+from pdf_utils import write_text_pdf
+
 try:
     from faker import Faker
 except ImportError:  # pragma: no cover - optional dependency
@@ -92,7 +94,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--format",
         choices=["both", "json", "txt"],
         default="both",
-        help="Output document format.",
+        help="Structured output format. A PDF is always generated too.",
     )
     return parser
 
@@ -219,7 +221,12 @@ def write_quote(quote: Quote, output_dir: Path, output_format: str) -> None:
         )
 
     if output_format in {"both", "txt"}:
-        (output_dir / f"{stem}.txt").write_text(quote_to_text(quote), encoding="utf-8")
+        txt_content = quote_to_text(quote)
+        (output_dir / f"{stem}.txt").write_text(txt_content, encoding="utf-8")
+    else:
+        txt_content = quote_to_text(quote)
+
+    write_text_pdf(output_dir / f"{stem}.pdf", txt_content)
 
 
 def main() -> None:

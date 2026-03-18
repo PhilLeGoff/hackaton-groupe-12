@@ -11,6 +11,8 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from pathlib import Path
 
+from pdf_utils import write_text_pdf
+
 try:
     from faker import Faker
 except ImportError:  # pragma: no cover - optional dependency
@@ -74,7 +76,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--format",
         choices=["both", "json", "txt"],
         default="both",
-        help="Output document format.",
+        help="Structured output format. A PDF is always generated too.",
     )
     return parser
 
@@ -163,10 +165,12 @@ def write_certificate(certificate: Certificate, output_dir: Path, output_format:
         )
 
     if output_format in {"both", "txt"}:
-        (output_dir / f"{stem}.txt").write_text(
-            certificate_to_text(certificate),
-            encoding="utf-8",
-        )
+        txt_content = certificate_to_text(certificate)
+        (output_dir / f"{stem}.txt").write_text(txt_content, encoding="utf-8")
+    else:
+        txt_content = certificate_to_text(certificate)
+
+    write_text_pdf(output_dir / f"{stem}.pdf", txt_content)
 
 
 def main() -> None:
