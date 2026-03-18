@@ -1,10 +1,14 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from bson import ObjectId
 from bson.errors import InvalidId
+from fastapi.responses import StreamingResponse
 from config.database import document_collection
 from bson import ObjectId
 from bson.errors import InvalidId
 from schemas.document import DocumentUpdate
+import httpx
+from params import HDFS_WEBHDFS_URL
+from typing import Optional
 
 _router = APIRouter(prefix="/api/documents", tags=["documents"])
 
@@ -42,22 +46,51 @@ def _get_anomalies(doc: dict) -> list:
         return validation.get("anomalies", [])
     return []
 
-# Get all documents
+# Get all documents with pagination, filtering by status and type
 @_router.get("")
-async def get_documents():
+async def get_documents(
+    limit: int = Query(10, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    status: Optional[str] = None,
+    type: Optional[str] = None
+):
     documents = []
+    query = {}
+
     try:
-        async for doc in document_collection.find():
+        if status:
+            query["status"] = status
+
+        cursor = document_collection.find(query).skip(offset).limit(limit)
+
+        async for doc in cursor:
+            doc_type = _get_type(doc)
+
+            if type and doc_type != type:
+                continue
+
             documents.append({
                 "id": str(doc["_id"]),
                 "name": doc.get("name") or doc.get("filename"),
-                "type": _get_type(doc),
+                "type": doc_type,
                 "status": doc.get("status"),
                 "confidence": _get_confidence(doc),
             })
-        return documents
+
+        total = await document_collection.count_documents(query)
+
+        return {
+            "data": documents,
+            "total": total,
+            "limit": limit,
+            "offset": offset
+        }
+
     except Exception:
-        raise HTTPException(status_code=500, detail="Impossible de se connecter a la base de donnees")
+        raise HTTPException(
+            status_code=500,
+            detail="Impossible de se connecter a la base de donnees"
+        )
 
 # Get document by ID
 @_router.get("/{document_id}")
@@ -106,3 +139,29 @@ async def update_document(document_id: str, payload: DocumentUpdate):
         raise HTTPException(status_code=404, detail="Document not found")
 
     return {"message": "Document updated"}
+
+
+@_router.get("/{document_id}/download")
+async def download_document(document_id: str):
+    try:
+        ObjectId(document_id)
+    except InvalidId:
+        raise HTTPException(status_code=400, detail="Invalid document ID")
+
+    hdfs_path = f"/raw/{document_id}"
+
+    url = f"{HDFS_WEBHDFS_URL}{hdfs_path}?op=OPEN"
+
+    async with httpx.AsyncClient() as client:
+        response = await client.get(url, follow_redirects=True)
+
+        if response.status_code != 200:
+            raise HTTPException(status_code=404, detail="File not found in HDFS")
+
+        return StreamingResponse(
+            response.aiter_bytes(),
+            media_type="application/octet-stream",
+            headers={
+                "Content-Disposition": f"attachment; filename={document_id}"
+            }
+        )
