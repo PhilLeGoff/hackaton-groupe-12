@@ -46,7 +46,7 @@
 
 ### NOUVEAU — Endpoint auto-remplissage (cahier des charges)
 
-- [ ] **GET `/api/cases/{id}/autofill`** — Agreger les donnees extraites de tous les docs du case
+- [x] **GET `/api/cases/{id}/autofill`** — Agreger les donnees extraites de tous les docs du case
   - Fichier : `backend/routes/cases.py`
   - Query tous les documents avec `case_id` correspondant
   - Retourner un objet structure :
