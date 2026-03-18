@@ -33,7 +33,7 @@ Le pipeline est coherent de bout en bout.
 - [ ] **Validation ObjectId** sur `cases/{id}` et `compliances/{id}`
   - Ajouter `try/except InvalidId` comme dans `documents.py`
 
-### P1 — Important
+### P1 — Important (DONE)
 
 - [ ] **GET `/api/documents/{id}/download`** — Telecharger le fichier original depuis HDFS `/raw/{id}/`
   - Utiliser `httpx` pour lire HDFS WebHDFS et retourner un `StreamingResponse`
