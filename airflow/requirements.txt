@@ -1,3 +1,12 @@
 pymongo==4.7.3
 requests==2.32.3
 pypdf
+transformers
+torch
+sentencepiece
+protobuf
+scikit-learn
+joblib
+spacy
+rapidfuzz
+numpy

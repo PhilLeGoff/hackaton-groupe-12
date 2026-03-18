@@ -1,17 +1,26 @@
 # Image Python légère
 FROM python:3.11-slim
 
+# Tesseract OCR + poppler (pdftoppm) pour le pipeline OCR
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    tesseract-ocr \
+    tesseract-ocr-fra \
+    poppler-utils \
+    && rm -rf /var/lib/apt/lists/*
+
 # Dossier de travail dans le container
 WORKDIR /app
 
 # Copie des dépendances d'abord (pour profiter du cache Docker)
 COPY requirement.txt .
-# mise à niveau du pip
 
 RUN python -m pip install --upgrade pip
 
 # Installation des dépendances
 RUN pip install --no-cache-dir -r requirement.txt
+
+# Télécharger le modèle spaCy français
+RUN python -m spacy download fr_core_news_md
 
 # Copie du code source
 COPY . .

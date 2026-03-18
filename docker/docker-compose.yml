@@ -29,6 +29,7 @@ services:
     volumes:
       - ../backend:/app
       - ../ia:/app/ia
+      - ../data:/app/data
     depends_on:
       mongodb:
         condition: service_healthy
