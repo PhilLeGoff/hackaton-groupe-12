@@ -63,7 +63,7 @@ export const HomePage = () => {
               <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-600 text-white">
                 2
               </div>
-              <h3 className="text-lg font-semibold text-slate-900">Upload de documents</h3>
+              <h3 className="text-lg font-semibold text-slate-900">Dépôt de documents</h3>
               <p className="mt-2 text-sm leading-6 text-slate-600">
                 Déposez vos fichiers (PDF, images, DOCX) pour lancer l’extraction IA automatique.
               </p>
@@ -71,7 +71,7 @@ export const HomePage = () => {
                 to="/upload"
                 className="mt-4 inline-flex text-sm font-semibold text-slate-900 hover:text-slate-700"
               >
-                Uploader un document →
+                Déposer un document →
               </Link>
             </div>
 
@@ -79,7 +79,7 @@ export const HomePage = () => {
               <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white">
                 3
               </div>
-              <h3 className="text-lg font-semibold text-slate-900">Dashboard pipeline</h3>
+              <h3 className="text-lg font-semibold text-slate-900">Suivi du pipeline</h3>
               <p className="mt-2 text-sm leading-6 text-slate-600">
                 Suivi en temps réel du traitement des documents : OCR, NER, classification, validation.
               </p>
@@ -87,7 +87,7 @@ export const HomePage = () => {
                 to="/dashboard"
                 className="mt-4 inline-flex text-sm font-semibold text-slate-900 hover:text-slate-700"
               >
-                Voir le dashboard →
+                Voir le suivi →
               </Link>
             </div>
           </div>

@@ -119,22 +119,23 @@ export const UploadPage = () => {
   const allDone = uploadedFiles && pendingCount === 0;
 
   return (
-    <Layout title="Upload de documents" subtitle="Déposez vos fichiers pour lancer l'extraction IA automatique.">
+    <Layout title="Dépôt de documents" subtitle="Déposez vos fichiers pour lancer l'extraction IA automatique.">
       <div className="mx-auto max-w-xl space-y-6">
 
         {/* Drop zone */}
-        <div
+        <button
+          type="button"
           onDrop={handleDrop}
           onDragOver={(e) => e.preventDefault()}
           onClick={() => inputRef.current.click()}
-          className="flex cursor-pointer flex-col items-center rounded-3xl border-2 border-dashed border-slate-300 bg-white p-10 text-center transition hover:border-slate-400 hover:bg-slate-50"
+          className="flex w-full cursor-pointer flex-col items-center rounded-3xl border-2 border-dashed border-slate-300 bg-white p-10 text-center transition hover:border-slate-400 hover:bg-slate-50"
         >
           <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-2xl">+</div>
           <p className="mt-4 text-base font-semibold text-slate-900">Glissez vos documents ici</p>
           <p className="mt-1 text-sm text-slate-500">ou cliquez pour parcourir vos fichiers</p>
           <p className="mt-3 text-xs text-slate-400">PDF, DOCX, JPEG, PNG, TXT — max 20 Mo — 3 fichiers max</p>
           <input ref={inputRef} type="file" accept=".pdf,.docx,.jpeg,.jpg,.png,.txt" onChange={handleFileChange} multiple hidden />
-        </div>
+        </button>
 
         {/* Selected files */}
         {files.length > 0 && (
@@ -224,7 +225,7 @@ export const UploadPage = () => {
                 to="/dashboard"
                 className="mt-4 inline-flex w-full justify-center rounded-2xl bg-slate-900 px-6 py-3 text-sm font-semibold text-white hover:bg-slate-800"
               >
-                Voir le dashboard
+                Voir le suivi
               </Link>
             )}
           </div>

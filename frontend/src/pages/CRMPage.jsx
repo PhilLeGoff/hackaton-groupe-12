@@ -1,41 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { Layout } from "../components/Layout";
 import { StatCard } from "../components/StatCard";
 import { SectionCard } from "../components/SectionCard";
 import { StatusBadge } from "../components/StatusBadge";
 import { ErrorAlert } from "../components/ErrorAlert";
-import { mockCases } from "../data/mockCases";
-import { getCases } from "../api/cases";
-
-const getStatusVariant = (status) => {
-  switch (status) {
-    case "Conforme":
-    case "compliant":
-      return "success";
-    case "Non conforme":
-    case "non_compliant":
-      return "danger";
-    case "À vérifier":
-    case "to_review":
-      return "warning";
-    default:
-      return "default";
-  }
-};
-
-const normalizeStatus = (status) => {
-  switch (status) {
-    case "compliant":
-      return "Conforme";
-    case "non_compliant":
-      return "Non conforme";
-    case "to_review":
-      return "À vérifier";
-    default:
-      return status || "À vérifier";
-  }
-};
+import { getCases, createCase } from "../api/cases";
+import { normalizeStatus, getStatusVariant } from "../utils/statusUtils";
 
 const normalizeCase = (item) => ({
   id: item.id || item._id || "N/A",
@@ -49,44 +20,82 @@ const normalizeCase = (item) => ({
 });
 
 export const CRMPage = () => {
-  const [cases, setCases] = useState(mockCases);
+  const [cases, setCases] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [activeFilter, setActiveFilter] = useState("Tous");
+  const [showNewCase, setShowNewCase] = useState(false);
+  const [newCase, setNewCase] = useState({ company_name: "", siret: "", contact: "", sector: "" });
+  const [creating, setCreating] = useState(false);
+
+  const fetchCases = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError("");
+
+      const data = await getCases();
+      const items = data?.data || data;
+
+      if (Array.isArray(items)) {
+        setCases(items.map(normalizeCase));
+      } else {
+        setCases([]);
+      }
+    } catch (err) {
+      console.error("Erreur chargement dossiers:", err);
+      setError(
+        "Impossible de charger les dossiers depuis l'API.",
+      );
+      setCases([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    const loadCases = async () => {
-      try {
-        setLoading(true);
-        setError("");
+    fetchCases();
+  }, [fetchCases]);
 
-        const data = await getCases();
+  const handleCreateCase = async (e) => {
+    e.preventDefault();
+    if (!newCase.company_name || !newCase.siret) return;
+    try {
+      setCreating(true);
+      await createCase(newCase);
+      setShowNewCase(false);
+      setNewCase({ company_name: "", siret: "", contact: "", sector: "" });
+      fetchCases();
+    } catch (err) {
+      console.error("Erreur création dossier:", err);
+      setError("Impossible de créer le dossier.");
+    } finally {
+      setCreating(false);
+    }
+  };
 
-        if (Array.isArray(data) && data.length > 0) {
-          setCases(data.map(normalizeCase));
-        } else {
-          setCases(mockCases);
-        }
-      } catch (err) {
-        console.error("Erreur chargement dossiers:", err);
-        setError(
-          "Impossible de charger les dossiers depuis l’API. Affichage des données de démonstration.",
-        );
-        setCases(mockCases);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadCases();
-  }, []);
+  const handleExport = () => {
+    const json = JSON.stringify(cases, null, 2);
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `crm-export-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
 
   const filteredCases = useMemo(() => {
     let result = [...cases];
 
-    if (activeFilter !== "Tous") {
-      result = result.filter((item) => item.status === activeFilter);
+    if (activeFilter === "À vérifier") {
+      result = result.filter((item) => item.status === "À vérifier" || item.status === "En attente");
+    } else if (activeFilter === "Conforme") {
+      result = result.filter((item) => item.status === "Conforme" || item.status === "Validé");
+    } else if (activeFilter === "Non conforme") {
+      result = result.filter((item) => item.status === "Non conforme" || item.status === "Erreur");
     }
 
     const value = search.trim().toLowerCase();
@@ -104,9 +113,9 @@ export const CRMPage = () => {
   }, [cases, search, activeFilter]);
 
   const totalCases = cases.length;
-  const compliantCases = cases.filter((item) => item.status === "Conforme").length;
-  const reviewCases = cases.filter((item) => item.status === "À vérifier").length;
-  const nonCompliantCases = cases.filter((item) => item.status === "Non conforme").length;
+  const compliantCases = cases.filter((item) => item.status === "Conforme" || item.status === "Validé").length;
+  const reviewCases = cases.filter((item) => item.status === "À vérifier" || item.status === "En attente").length;
+  const nonCompliantCases = cases.filter((item) => item.status === "Non conforme" || item.status === "Erreur").length;
 
   const filterBtnClass = (label) =>
     activeFilter === label
@@ -116,7 +125,7 @@ export const CRMPage = () => {
   return (
     <Layout
       title="CRM documentaire"
-      subtitle="Consulte les dossiers d’entreprise, suis l’état des documents analysés et accède rapidement aux modules de contrôle et de conformité."
+      subtitle="Consulte les dossiers d'entreprise, suis l'état des documents analysés et accède rapidement aux modules de contrôle et de conformité."
     >
       <div className="space-y-8">
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -153,6 +162,73 @@ export const CRMPage = () => {
         </section>
 
         {error && <ErrorAlert message={error} />}
+
+        {/* Modal nouveau dossier */}
+        {showNewCase && (
+          <SectionCard title="Nouveau dossier" subtitle="Créer un dossier fournisseur manuellement.">
+            <form onSubmit={handleCreateCase} className="grid gap-4 md:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">Raison sociale *</label>
+                <input
+                  type="text"
+                  value={newCase.company_name}
+                  onChange={(e) => setNewCase((p) => ({ ...p, company_name: e.target.value }))}
+                  placeholder="Société Alpha"
+                  required
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none focus:border-slate-400 focus:bg-white"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">SIRET *</label>
+                <input
+                  type="text"
+                  value={newCase.siret}
+                  onChange={(e) => setNewCase((p) => ({ ...p, siret: e.target.value }))}
+                  placeholder="12345678900011"
+                  required
+                  maxLength={14}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none focus:border-slate-400 focus:bg-white"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">Contact</label>
+                <input
+                  type="text"
+                  value={newCase.contact}
+                  onChange={(e) => setNewCase((p) => ({ ...p, contact: e.target.value }))}
+                  placeholder="email@entreprise.fr"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none focus:border-slate-400 focus:bg-white"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">Secteur</label>
+                <input
+                  type="text"
+                  value={newCase.sector}
+                  onChange={(e) => setNewCase((p) => ({ ...p, sector: e.target.value }))}
+                  placeholder="Services, Industrie..."
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none focus:border-slate-400 focus:bg-white"
+                />
+              </div>
+              <div className="flex gap-3 md:col-span-2">
+                <button
+                  type="submit"
+                  disabled={creating}
+                  className="rounded-2xl bg-slate-900 px-6 py-3 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+                >
+                  {creating ? "Création..." : "Créer le dossier"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowNewCase(false)}
+                  className="rounded-2xl border border-slate-200 bg-white px-6 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  Annuler
+                </button>
+              </div>
+            </form>
+          </SectionCard>
+        )}
 
         <SectionCard>
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -195,7 +271,10 @@ export const CRMPage = () => {
               </div>
             </div>
 
-            <button className="rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800">
+            <button
+              onClick={() => setShowNewCase(true)}
+              className="rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
+            >
               + Nouveau dossier
             </button>
           </div>
@@ -206,14 +285,18 @@ export const CRMPage = () => {
           subtitle={`Filtre actif : ${activeFilter}`}
           rightElement={
             <div className="flex items-center gap-2">
-              <button className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+              <button
+                onClick={handleExport}
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
                 Exporter
               </button>
               <button
                 className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                onClick={() => window.location.reload()}
+                onClick={fetchCases}
+                disabled={loading}
               >
-                Actualiser
+                {loading ? "..." : "Actualiser"}
               </button>
             </div>
           }

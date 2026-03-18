@@ -1,24 +1,9 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { Layout } from "../components/Layout";
+import { ErrorAlert } from "../components/ErrorAlert";
 import { api } from "../api/axios";
-
-const StatusBadge = ({ status }) => {
-  const styles = {
-    completed: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    "Analyse terminee": "bg-emerald-50 text-emerald-700 border-emerald-200",
-    validated: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    uploaded: "bg-blue-50 text-blue-700 border-blue-200",
-    processing: "bg-amber-50 text-amber-700 border-amber-200",
-    to_review: "bg-amber-50 text-amber-700 border-amber-200",
-    error: "bg-red-50 text-red-700 border-red-200",
-  };
-  return (
-    <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium ${styles[status] || "bg-slate-50 text-slate-600 border-slate-200"}`}>
-      {status || "N/A"}
-    </span>
-  );
-};
+import { normalizeStatus, getStatusBadgeClass } from "../utils/statusUtils";
 
 export const DashboardPage = () => {
   const [documents, setDocuments] = useState([]);
@@ -47,23 +32,25 @@ export const DashboardPage = () => {
   }, [fetchDocuments]);
 
   const totalDocuments = documents.length;
-  const completedDocs = documents.filter(
-    (doc) => doc.status === "completed" || doc.status === "Analyse terminee"
-  ).length;
-  const processingDocs = documents.filter(
-    (doc) => doc.status === "processing" || doc.status === "uploaded"
-  ).length;
-  const errorDocs = documents.filter((doc) => doc.status === "error").length;
+  const completedDocs = documents.filter((doc) => {
+    const n = normalizeStatus(doc.status);
+    return n === "Analysé" || n === "Validé" || n === "À vérifier";
+  }).length;
+  const processingDocs = documents.filter((doc) => {
+    const n = normalizeStatus(doc.status);
+    return n === "En cours" || n === "En attente";
+  }).length;
+  const errorDocs = documents.filter((doc) => normalizeStatus(doc.status) === "Erreur").length;
 
   const stats = [
-    { label: "Total documents", value: totalDocuments, color: "bg-slate-900 text-white" },
+    { label: "Documents totaux", value: totalDocuments, color: "bg-slate-900 text-white" },
     { label: "Traités", value: completedDocs, color: "bg-emerald-50 text-emerald-700 border border-emerald-200" },
     { label: "En cours", value: processingDocs, color: "bg-amber-50 text-amber-700 border border-amber-200" },
     { label: "Erreurs", value: errorDocs, color: "bg-red-50 text-red-700 border border-red-200" },
   ];
 
   return (
-    <Layout title="Dashboard" subtitle="Suivi du pipeline de traitement des documents">
+    <Layout title="Suivi du pipeline" subtitle="Vue en temps réel du traitement des documents par l'IA">
       <div className="space-y-6">
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           {stats.map((stat) => (
@@ -91,9 +78,7 @@ export const DashboardPage = () => {
           {isLoading && (
             <p className="mt-4 text-sm text-slate-500">Chargement...</p>
           )}
-          {errorMessage && (
-            <p className="mt-4 text-sm text-red-600">{errorMessage}</p>
-          )}
+          {errorMessage && <ErrorAlert message={errorMessage} />}
 
           {!isLoading && !errorMessage && (
             <div className="mt-4 overflow-x-auto">
@@ -121,7 +106,9 @@ export const DashboardPage = () => {
                         {doc.type || "N/A"}
                       </td>
                       <td className="py-3 pr-4">
-                        <StatusBadge status={doc.status} />
+                        <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium ${getStatusBadgeClass(doc.status)}`}>
+                          {normalizeStatus(doc.status)}
+                        </span>
                       </td>
                       <td className="py-3 pr-4 text-slate-600">
                         {doc.confidence ? `${doc.confidence}%` : "—"}
