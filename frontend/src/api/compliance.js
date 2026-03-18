@@ -20,6 +20,11 @@ export const getComplianceById = async (id) => {
   }
 };
 
+export const getComplianceByCaseId = async (caseId) => {
+  const response = await api.get(`/api/compliances/case/${caseId}`);
+  return response.data;
+};
+
 export const updateCompliance = async (id, decision) => {
   const response = await api.put(`/api/compliances/${id}`, { decision });
   return response.data;

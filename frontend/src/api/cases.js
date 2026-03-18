@@ -20,7 +20,17 @@ export const getCaseById = async (id) => {
   }
 };
 
+export const createCase = async (data) => {
+  const response = await api.post("/api/cases", data);
+  return response.data;
+};
+
 export const getAutofill = async (id) => {
   const response = await api.get(`/api/cases/${id}/autofill`);
+  return response.data;
+};
+
+export const getDocumentsByCase = async (caseId) => {
+  const response = await api.get(`/api/documents?case_id=${caseId}&limit=100`);
   return response.data;
 };
