@@ -23,3 +23,20 @@ class CaseModel(BaseModel):
 
     class Config:
         populate_by_name = True
+
+class CaseUpdateModel(BaseModel):
+    company_name: Optional[str] = None
+    siret: Optional[str] = None
+    status: Optional[CaseStatus] = None
+    documents: Optional[int] = None
+    contact: Optional[str] = None
+    sector: Optional[str] = None
+    
+class CaseCreateModel(BaseModel):
+    company_name: str
+    siret: str
+    status: CaseStatus
+    documents: int
+    owner: str
+    contact: Optional[str] = None
+    sector: Optional[str] = None
