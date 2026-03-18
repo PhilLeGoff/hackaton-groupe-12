@@ -6,6 +6,9 @@ WORKDIR /app
 
 # Copie des dépendances d'abord (pour profiter du cache Docker)
 COPY requirement.txt .
+# mise à niveau du pip
+
+RUN python -m pip install --upgrade pip
 
 # Installation des dépendances
 RUN pip install --no-cache-dir -r requirement.txt
@@ -17,4 +20,4 @@ COPY . .
 EXPOSE 8000
 
 # Lancement de l'API avec uvicorn
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -1,0 +1,39 @@
+graph TD
+    T1["Start Processing"] --> T2["OCR\nextract_text()"]
+
+    subgraph Bronze["Bronze — Donnees brutes"]
+        T2
+    end
+
+    T2 --> T3["Store Clean\nHDFS /clean/"]
+    T3 --> T4["Extraction Entites\nextract_ner()"]
+    T3 --> T5["Classification\nclassify()"]
+
+    subgraph Silver["Silver — Donnees nettoyees"]
+        T3
+        T4
+        T5
+    end
+
+    T4 --> T6["Validation\nvalidate()"]
+    T5 --> T6
+    T6 --> T7["Store Curated\nHDFS /curated/"]
+    T7 --> T8["Sync MongoDB\nstatus → completed"]
+
+    subgraph Gold["Gold — Donnees validees"]
+        T6
+        T7
+        T8
+    end
+
+    style T1 fill:#6b7280,color:#fff
+    style T2 fill:#ef4444,color:#fff
+    style T3 fill:#10b981,color:#fff
+    style T4 fill:#ef4444,color:#fff
+    style T5 fill:#ef4444,color:#fff
+    style T6 fill:#f59e0b,color:#fff
+    style T7 fill:#10b981,color:#fff
+    style T8 fill:#3b82f6,color:#fff
+    style Bronze fill:#cd7f3220,stroke:#cd7f32,stroke-width:2px
+    style Silver fill:#c0c0c020,stroke:#c0c0c0,stroke-width:2px
+    style Gold fill:#ffd70020,stroke:#ffd700,stroke-width:2px

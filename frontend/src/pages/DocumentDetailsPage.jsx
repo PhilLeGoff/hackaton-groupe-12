@@ -9,7 +9,7 @@ import {
   documentAnomalies as fallbackDocumentAnomalies,
   timeline as fallbackTimeline,
 } from "../data/mockDocuments";
-import { getDocumentById, getDocumentExtraction } from "../api/documents";
+import { getDocumentById } from "../api/documents";
 
 const normalizeDocument = (item) => ({
   id: item.id || item._id || "N/A",
@@ -83,19 +83,13 @@ export const DocumentDetailsPage = () => {
         setLoading(true);
         setError("");
 
-        const [documentResponse, extractionResponse] = await Promise.all([
-          getDocumentById(documentId),
-          getDocumentExtraction(documentId),
-        ]);
+        const documentResponse = await getDocumentById(documentId);
 
         if (documentResponse && typeof documentResponse === "object") {
           setDocumentData(normalizeDocument(documentResponse));
-        }
-
-        if (extractionResponse) {
-          setFields(normalizeExtraction(extractionResponse));
-        } else {
-          setFields(fallbackExtractedFields);
+          if (documentResponse.extractedFields) {
+            setFields(normalizeExtraction(documentResponse.extractedFields));
+          }
         }
       } catch (err) {
         console.error("Erreur chargement document:", err);

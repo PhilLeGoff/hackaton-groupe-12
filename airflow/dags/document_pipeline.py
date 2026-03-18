@@ -193,12 +193,13 @@ with DAG(
         "email_on_failure": False,
         "email_on_retry": False,
         "retries": 1,
-        "retry_delay": timedelta(minutes=2),
+        "retry_delay": timedelta(seconds=10),
     },
     description="Pipeline de traitement documentaire DocuScan AI",
     schedule=None,
     start_date=datetime(2026, 1, 1),
     catchup=False,
+    is_paused_upon_creation=False,
     tags=["docuscan", "pipeline", "ocr", "nlp"],
 ) as dag:
 
