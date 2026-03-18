@@ -2,147 +2,146 @@
 
 Plateforme de traitement automatisé de documents administratifs (factures, devis, attestations SIRET, URSSAF, Kbis, RIB) combinant OCR, NLP et détection d'anomalies pour extraire, valider et distribuer les données vers des applications métiers.
 
+**Projet Hackathon 2026 — 7 membres**
+
 ---
 
 ## Stack Technique
 
-| Couche | Technologie |
-|---|---|
-| **Front-end** | React (Vite) |
-| **Back-end / API** | FastAPI (Python) |
-| **Base de données** | MongoDB (base applicative : métadonnées, CRM, conformité) |
-| **Data Lake** | Hadoop HDFS (3 zones : Raw / Clean / Curated) |
-| **OCR** | Tesseract / EasyOCR |
-| **Classification** | CNN / Random Forest (type de document) |
-| **NLP / NER** | spaCy, Transformers (extraction d'entités) |
-| **Anomaly Detection** | scikit-learn (incohérences inter-documents) |
-| **Orchestration** | Apache Airflow |
-| **Conteneurisation** | Docker / Docker Compose |
-| **Génération de données** | Faker (Python) |
+| Couche | Technologie | État |
+|---|---|---|
+| **Front-end** | React 19, Vite 8, TailwindCSS 4 | Fonctionnel (7 pages) |
+| **Back-end / API** | FastAPI (Python) | Fonctionnel (upload + lecture) |
+| **Base de données** | MongoDB (motor async) | Fonctionnel |
+| **Data Lake** | Hadoop HDFS (3 zones : Raw / Clean / Curated) | Fonctionnel |
+| **OCR** | À implémenter (Tesseract / EasyOCR prévu) | Vide |
+| **Classification** | À implémenter | Vide |
+| **NLP / NER** | À implémenter | Vide |
+| **Anomaly Detection** | À implémenter | Vide |
+| **Orchestration** | Apache Airflow | Fonctionnel (DAG 8 tâches) |
+| **Conteneurisation** | Docker / Docker Compose | Fonctionnel (8 services) |
 
 ---
 
 ## Architecture
 
 ```
-┌───────────────────────────────── Docker Compose ──────────────────────────────────┐
-│                                                                                   │
-│  ┌─────────────┐    ┌──────────────┐    ┌─────────────┐                           │
-│  │  Front-end  │───▶│   FastAPI     │───▶│   MongoDB   │                           │
-│  │   React     │◀───│   Backend     │◀───│  (base      │                           │
-│  │             │    │              │    │  applicat.) │                           │
-│  │  - Upload   │    │  - Reçoit    │    │             │                           │
-│  │  - CRM      │    │    uploads   │    │ - Méta docs │                           │
-│  │  - Conform. │    │  - Déclenche │    │ - CRM       │                           │
-│  └─────────────┘    │    Airflow   │    │ - Conformité│                           │
-│                     │  - Lit Mongo │    └──────┬──────┘                           │
-│                     └──────────────┘           │ ▲                                │
-│                                                │ │                                │
-│                                         upload │ │ sync (étape 7)                 │
-│                                                ▼ │                                │
-│  ┌─────────────────────────────────────────────────────────────────────────────┐   │
-│  │                          Airflow DAGs                                       │   │
-│  │                                                                             │   │
-│  │  1. Ingestion ──▶ 2. OCR ──▶ 3. NER ──▶ 4. Classif. ──▶ 5. Validation     │   │
-│  │  (MongoDB →       (Raw →     (Clean)    (Clean)         (détection          │   │
-│  │   HDFS Raw)       Clean)                                 anomalies)         │   │
-│  │                                                              │              │   │
-│  │                                              6. Store Curated ◀─┘              │   │
-│  │                                                     │                       │   │
-│  │                                              7. Sync MongoDB               │   │
-│  │                                                                             │   │
-│  │                     ┌─────────────┐    ┌────────────────────────────────┐    │   │
-│  │                     │  Couche IA  │    │         Hadoop HDFS            │    │   │
-│  │                     │             │    │  Raw   │  Clean  │  Curated    │    │   │
-│  │                     │ - OCR       │◀──▶│                               │    │   │
-│  │                     │ - NER       │    └────────────────────────────────┘    │   │
-│  │                     │ - Classif.  │                                         │   │
-│  │                     │ - Anomaly   │                                         │   │
-│  │                     └─────────────┘                                         │   │
-│  └─────────────────────────────────────────────────────────────────────────────┘   │
-│                                                                                   │
-└───────────────────────────────────────────────────────────────────────────────────┘
-
-Flux upload   : Front-end → FastAPI → MongoDB (fichier + méta) → déclenche Airflow
-Flux pipeline : Airflow : MongoDB → HDFS Raw → IA (OCR/NER/Classif/Anomaly) → HDFS Clean → HDFS Curated → sync MongoDB
-Flux lecture  : Front-end → FastAPI → MongoDB (données structurées CRM, conformité)
+                              ┌───────────────┐
+                              │  Utilisateur   │
+                              │  Upload PDF /  │
+                              │  JPEG / PNG    │
+                              └───────┬───────┘
+                                      │
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                              Docker Compose                                     │
+│                                                                                 │
+│  ┌──────────────┐       ┌──────────────┐       ┌──────────────┐                │
+│  │              │       │              │       │              │                │
+│  │   React      │──────▶│   FastAPI     │──────▶│   MongoDB    │                │
+│  │   Front-end  │◀──────│   Backend     │◀──────│              │                │
+│  │   :5173      │       │   :8000      │       │  Hackathon   │                │
+│  │              │       │              │       │  (database)  │                │
+│  │  Upload      │       │  /api/upload │       │              │                │
+│  │  Dashboard   │       │  /api/docs   │       │  documents   │                │
+│  │  CRM         │       │  /api/cases  │       │  cases       │                │
+│  │  Conformité  │       │  /api/compl. │       │  compliances │                │
+│  │              │       │              │       │              │                │
+│  └──────────────┘       └──────┬───────┘       └──────▲───────┘                │
+│                                │                      │                         │
+│                    ┌───────────┴───────────┐          │ sync                    │
+│                    │                       │          │ (tâche 8)               │
+│                    ▼                       ▼          │                         │
+│  ┌─────────────────────┐    ┌──────────────────────────────────────────────┐   │
+│  │                     │    │                                              │   │
+│  │    Hadoop HDFS      │    │     Airflow DAG — document_pipeline          │   │
+│  │    :9870 (WebHDFS)  │    │     :8080 (UI)                              │   │
+│  │                     │    │                                              │   │
+│  │  ┌───────────────┐  │◀──│──  1. start_processing                       │   │
+│  │  │   Raw Zone    │──│──▶│──  2. run_ocr (⚠ placeholder)               │   │
+│  │  │   /raw/{id}/  │  │   │                                              │   │
+│  │  ├───────────────┤  │◀──│──  3. store_clean_hdfs                       │   │
+│  │  │  Clean Zone   │  │   │  4. extract_entities  (⚠ placeholder)       │   │
+│  │  │  /clean/{id}/ │  │   │  5. classify_document (⚠ placeholder)       │   │
+│  │  ├───────────────┤  │   │  6. validate_coherence (⚠ placeholder)      │   │
+│  │  │ Curated Zone  │  │◀──│──  7. store_curated_hdfs                     │   │
+│  │  │ /curated/{id}/│  │   │  8. sync_mongodb ──────────────────────────│───┘
+│  │  └───────────────┘  │   │                                              │
+│  └─────────────────────┘   │  ┌────────────┐                              │
+│                             │  │ ia/ (VIDE) │  Modules IA à implémenter   │
+│                             │  │ ocr/       │  → fallback placeholders    │
+│                             │  │ nlp/       │     actuellement utilisés   │
+│                             │  │ classif/   │                              │
+│                             │  │ anomaly/   │                              │
+│                             │  └────────────┘                              │
+│                             └──────────────────────────────────────────────┘
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
 ```
+
+**Flux upload** : Front → FastAPI → métadonnées MongoDB + fichier HDFS Raw → trigger Airflow DAG
+**Flux pipeline** : Airflow lit HDFS Raw → OCR → HDFS Clean → NER/Classif/Anomaly → HDFS Curated → sync MongoDB
+**Flux lecture** : Front → FastAPI → MongoDB (données structurées)
 
 ### Stockage — HDFS + MongoDB
 
 | Composant | Rôle |
 |---|---|
-| **HDFS — Raw** | Documents bruts (PDF, images) tels qu'uploadés |
-| **HDFS — Clean** | Texte extrait par OCR (format texte brut / JSON) |
-| **HDFS — Curated** | Données structurées, validées, prêtes à consommer |
-| **MongoDB** | Base applicative — reçoit les uploads via FastAPI (fichier + métadonnées), puis enrichie par Airflow avec les résultats structurés (entités, classification, anomalies). Requêtée par les front-ends via FastAPI pour le CRM et la conformité |
-
----
-
-## Fonctionnalités
-
-- **Upload multi-documents** — PDF, images (JPEG, PNG), scans
-- **Classification automatique** — Détection du type de document (facture, devis, attestation, Kbis, RIB)
-- **OCR robuste** — Extraction de texte même sur documents bruités, flous, pivotés
-- **Extraction d'entités (NER)** — SIRET, TVA, montants HT/TTC, dates d'émission/expiration
-- **Détection d'incohérences inter-documents** :
-  - SIRET différent entre facture et attestation
-  - TVA incohérente
-  - Attestation de vigilance expirée
-  - Montants divergents entre devis et facture
-- **Auto-remplissage** de 2 applications métiers :
-  - **CRM** — Fiche fournisseur pré-remplie
-  - **Outil de conformité** — Tableau de bord de validation réglementaire
-- **Pipeline orchestré** via Airflow (ingestion → OCR → extraction → validation)
-- **Stockage structuré** Data Lake HDFS 3 zones + MongoDB (base applicative)
+| **HDFS — Raw** `/raw/{id}/` | Documents bruts (PDF, images) écrits par le backend via WebHDFS à l'upload |
+| **HDFS — Clean** `/clean/{id}/` | Texte extrait par OCR (format texte brut) |
+| **HDFS — Curated** `/curated/{id}/` | Données structurées enrichies (JSON) |
+| **MongoDB** `Hackathon` | Base applicative — métadonnées documents, résultats IA (entités, classification, anomalies), cases, compliances |
 
 ---
 
 ## Structure du Projet
 
 ```
-Hackathon/
-├── frontend/                # Application React
+hackaton-groupe-12/
+├── frontend/                  # Application React 19 + Vite 8 + TailwindCSS 4
 │   ├── src/
-│   │   ├── components/      # Composants réutilisables
-│   │   ├── pages/           # Pages (Upload, CRM, Conformité, Dashboard)
-│   │   ├── services/        # Appels API
-│   │   └── App.jsx
+│   │   ├── api/               # Appels API (axios, documents, cases, compliance)
+│   │   ├── components/        # Layout, Header, Button, StatCard, SectionCard, StatusBadge
+│   │   ├── pages/             # 7 pages (Home, CRM, CaseDetails, Document, Compliance, Upload, Dashboard)
+│   │   ├── data/              # Données mock (fallback si API vide/erreur)
+│   │   └── Router.jsx         # Configuration des routes
+│   ├── .env                   # VITE_API_URL=http://127.0.0.1:8000
+│   ├── vite.config.js         # Proxy /api, server config
 │   └── package.json
 │
-├── backend/                 # API FastAPI
-│   ├── app/
-│   │   ├── routers/         # Routes API (upload, documents, crm, conformite)
-│   │   ├── services/        # Logique métier (OCR, NLP, validation)
-│   │   ├── models/          # Modèles Pydantic & schémas MongoDB
-│   │   ├── database/        # Connexion MongoDB
-│   │   └── main.py
-│   └── requirements.txt
+├── backend/                   # API FastAPI (Python)
+│   ├── main.py                # Entry point, CORS middleware
+│   ├── params.py              # Variables d'environnement
+│   ├── Dockerfile
+│   ├── requirement.txt        # fastapi, motor, httpx, pypdf, python-docx, Pillow
+│   ├── config/database.py     # Motor async client, collections
+│   ├── model/                 # Pydantic models (document, case, compliance)
+│   ├── routes/                # uploadsRoute, documents, cases, compliances
+│   └── utils/                 # logger, extractorMetaData (inutilisé), formatters (inutilisé)
 │
-├── data/                    # Génération de datasets
-│   ├── generators/          # Scripts Faker pour factures, devis, attestations
-│   ├── templates/           # Templates de documents
-│   └── samples/             # Échantillons générés
+├── ia/                        # Couche IA — ⚠ VIDE (scaffolding .gitkeep uniquement)
+│   ├── ocr/                   # Pipeline OCR à implémenter
+│   ├── nlp/                   # Extraction d'entités NER à implémenter
+│   ├── classification/        # Classification de documents à implémenter
+│   └── anomaly_detection/     # Détection d'anomalies à implémenter
 │
-├── airflow/                 # DAGs Airflow
+├── airflow/                   # Orchestration Apache Airflow
 │   ├── dags/
-│   │   └── document_pipeline.py
-│   └── datalake/            # Interface HDFS (Raw/Clean/Curated)
+│   │   └── document_pipeline.py   # DAG 8 tâches (import IA avec fallback placeholder)
+│   ├── plugins/helpers/
+│   │   ├── mongo.py           # Client pymongo sync
+│   │   └── hdfs.py            # Client WebHDFS REST
+│   └── requirements.txt       # pymongo, requests
 │
-├── ia/                      # Couche Intelligence Artificielle
-│   ├── ocr/                 # Pipeline OCR (Tesseract / EasyOCR)
-│   ├── classifier/          # Classification de documents (CNN / RF)
-│   ├── ner/                 # Extraction d'entités (spaCy / Transformers)
-│   ├── anomaly/             # Détection d'anomalies (scikit-learn)
-│   └── training/            # Scripts d'entraînement et évaluation
+├── data/                      # Datasets — ⚠ VIDE
+│   ├── datasets/              # (vide)
+│   └── templates/             # (vide)
 │
-├── docker/                  # Conteneurisation
-│   ├── docker-compose.yml
-│   ├── Dockerfile.frontend
-│   ├── Dockerfile.backend
-│   ├── Dockerfile.airflow
-│   └── Dockerfile.hadoop
+├── docker/
+│   └── docker-compose.yml     # 8 services (mongo, backend, frontend, hdfs×2, airflow×3)
 │
+├── start.sh                   # Script de gestion Docker (up, down, restart, logs, status, clean)
+├── CLAUDE.md                  # Instructions pour Claude Code
 └── README.md
 ```
 
@@ -153,81 +152,106 @@ Hackathon/
 ### Prérequis
 
 - Docker & Docker Compose
-- Node.js 18+
-- Python 3.11+
+- Node.js 18+ (pour le dev frontend hors Docker)
+- Python 3.11+ (pour le dev backend hors Docker)
 
 ### Lancement avec Docker Compose
 
 ```bash
-cd docker
-docker-compose up --build
+./start.sh up              # Build + start tous les services
+./start.sh down            # Arrêter
+./start.sh logs            # Suivre les logs
+./start.sh logs backend    # Logs d'un service spécifique
+./start.sh status          # État des conteneurs
+./start.sh clean           # Stop + supprime les volumes
 ```
 
-| Service | URL |
-|---|---|
-| Front-end React | http://localhost:5173 |
-| API FastAPI | http://localhost:8000 |
-| Swagger API docs | http://localhost:8000/docs |
-| Airflow UI | http://localhost:8080 |
-| MongoDB | localhost:27017 |
-| HDFS NameNode UI | http://localhost:9870 |
+Ou manuellement :
+```bash
+cd docker && docker compose up --build
+```
+
+| Service | URL | Credentials |
+|---|---|---|
+| Front-end React | http://localhost:5173 | — |
+| API FastAPI | http://localhost:8000 | — |
+| Swagger API docs | http://localhost:8000/docs | — |
+| Airflow UI | http://localhost:8080 | admin / admin |
+| MongoDB | localhost:27017 | pas d'auth |
+| HDFS NameNode UI | http://localhost:9870 | — |
 
 ### Lancement en développement (sans Docker)
 
 ```bash
 # Backend
 cd backend
-pip install -r requirements.txt
-uvicorn app.main:app --reload
+pip install -r requirement.txt
+uvicorn main:app --reload     # http://localhost:8000
 
 # Frontend
 cd frontend
 npm install
-npm run dev
+npm run dev                   # http://localhost:5173
 ```
+
+> **Note** : MongoDB, HDFS et Airflow doivent tourner (via Docker ou en local) pour que le backend fonctionne complètement.
 
 ---
 
-## Génération du Dataset
+## API — Endpoints
 
-```bash
-cd data/generators
-python generate_invoices.py      # Factures (légitimes + falsifiées)
-python generate_quotes.py        # Devis
-python generate_attestations.py  # Attestations SIRET / URSSAF
-python generate_kbis.py          # Extraits Kbis
-python generate_rib.py           # RIB
-python add_noise.py              # Ajout de bruit (rotation, flou, pixelisation)
-```
+| Méthode | Route | Description | État |
+|---|---|---|---|
+| `GET` | `/` | Health check | OK |
+| `POST` | `/api/upload` | Upload fichier(s) → MongoDB + HDFS + trigger Airflow | OK |
+| `GET` | `/api/documents` | Liste des documents | OK |
+| `GET` | `/api/documents/{id}` | Détail document (OCR, entités, classification, validation) | OK |
+| `GET` | `/api/cases` | Liste des dossiers | OK (vide — pas de logique de création) |
+| `GET` | `/api/cases/{id}` | Détail dossier | OK |
+| `GET` | `/api/compliances` | Liste conformités | OK (vide — pas de logique de création) |
+| `GET` | `/api/compliances/{id}` | Détail conformité | OK |
 
-Les données SIREN/SIRET proviennent de l'API SIRENE de l'INSEE via [data.gouv.fr](https://www.data.gouv.fr/datasets/base-sirene-des-entreprises-et-de-leurs-etablissements-siren-siret).
+**Manquant** : POST/PUT/DELETE pour cases et compliances, création automatique de dossiers après traitement IA.
 
 ---
 
 ## Pipeline Airflow
 
+DAG `document_pipeline` — 8 tâches séquentielles, déclenché par le backend à chaque upload :
+
 ```
-ingest_from_mongo → store_raw_hdfs → run_ocr → store_clean_hdfs → extract_entities → classify_document → validate_coherence → store_curated_hdfs → sync_mongodb
+start_processing → run_ocr → store_clean_hdfs → extract_entities → classify_document → validate_coherence → store_curated_hdfs → sync_mongodb
 ```
 
-- `ingest_from_mongo` : récupère le fichier uploadé depuis MongoDB et le dépose dans HDFS Raw
-- `sync_mongodb` : pousse les données structurées (entités, classification, anomalies) dans MongoDB pour les front-ends
-
-Le DAG `document_pipeline` s'exécute à chaque upload ou peut être déclenché manuellement depuis l'UI Airflow.
-
----
-
-## API — Endpoints Principaux
-
-| Méthode | Route | Description |
+| Tâche | Description | État |
 |---|---|---|
-| `POST` | `/api/upload` | Upload document(s) → stockage MongoDB + déclenchement Airflow |
-| `GET` | `/api/documents` | Liste des documents traités |
-| `GET` | `/api/documents/{id}` | Détail d'un document + données extraites |
-| `GET` | `/api/documents/{id}/anomalies` | Anomalies détectées |
-| `GET` | `/api/crm/suppliers` | Données fournisseurs pour le CRM |
-| `GET` | `/api/conformite/dashboard` | Tableau de bord conformité |
-| `POST` | `/api/conformite/validate` | Lancer une validation inter-documents |
+| `start_processing` | Status MongoDB → "processing" | OK |
+| `run_ocr` | Lit fichier HDFS Raw, appelle `ia.ocr.pipeline.extract_text()` | Placeholder |
+| `store_clean_hdfs` | Écrit le texte OCR dans HDFS Clean | OK |
+| `extract_entities` | Appelle `ia.nlp.ner.extract()` | Placeholder |
+| `classify_document` | Appelle `ia.classification.classifier.classify()` | Placeholder |
+| `validate_coherence` | Appelle `ia.anomaly_detection.detector.validate()` | Placeholder |
+| `store_curated_hdfs` | Écrit le JSON enrichi dans HDFS Curated | OK |
+| `sync_mongodb` | Met à jour le document MongoDB avec tous les résultats | OK |
+
+### Interfaces attendues des modules IA
+
+```python
+# ia/ocr/pipeline.py
+def extract_text(raw_content: bytes, content_type: str) -> str
+
+# ia/nlp/ner.py
+def extract(ocr_text: str) -> dict
+# Retour : {siret, vat, amount_ht, amount_ttc, issue_date, expiration_date, company_name, iban}
+
+# ia/classification/classifier.py
+def classify(ocr_text: str) -> dict
+# Retour : {document_type: str, confidence: float}
+
+# ia/anomaly_detection/detector.py
+def validate(entities: dict, classification: dict, document_id: str, collection=None) -> dict
+# Retour : {is_valid: bool, anomalies: list[str]}
+```
 
 ---
 
@@ -239,9 +263,9 @@ Le DAG `document_pipeline` s'exécute à chaque upload ou peut être déclenché
 | **Dev Fullstack 2** | Front-end React — CRM & Outil de Conformité |
 | **Dev Fullstack 3** | API FastAPI — routes, modèles, intégration MongoDB |
 | **Dev Back-end** | API FastAPI — intégration MongoDB, endpoints Data Lake, auto-remplissage apps |
-| **Data/IA 1** | Génération de datasets (Faker), OCR (Tesseract/EasyOCR), évaluation taux d'erreur |
-| **Data/IA 2** | NER (spaCy/Transformers), classification de documents, détection d'anomalies |
-| **Data/IA 3 — Chef de projet** | Orchestration Airflow, DAGs, monitoring, Docker, coordination & architecture |
+| **Data/IA 1** | Génération de datasets, OCR (Tesseract/EasyOCR) |
+| **Data/IA 2** | NER, classification de documents, détection d'anomalies |
+| **Data/IA 3 — Chef de projet** | Orchestration Airflow, DAGs, monitoring, Docker, coordination |
 
 ---
 
@@ -254,8 +278,9 @@ Le DAG `document_pipeline` s'exécute à chaque upload ou peut être déclenché
 | Incohérence SIRET | SIRET facture ≠ SIRET attestation → alerte |
 | Attestation expirée | Date de validité dépassée → alerte conformité |
 | TVA incohérente | Montant HT × taux ≠ TTC → alerte |
-| Document falsifié | Détection de champs modifiés ou suspects |
 | Multi-documents fournisseur | Validation croisée de l'ensemble du dossier |
+
+> **Note** : Ces scénarios nécessitent l'implémentation des modules IA et la création de datasets de test.
 
 ---
 
