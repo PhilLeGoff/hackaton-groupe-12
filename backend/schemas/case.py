@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, List
 
 class CaseCreate(BaseModel):
     company_name: str = Field(..., example="Total Energies")
@@ -13,3 +13,25 @@ class CaseUpdate(BaseModel):
     contact: Optional[str]
     sector: Optional[str]
     status: Optional[str]
+    
+class CaseResponse(BaseModel):
+    id: str
+    companyName: Optional[str]
+    siret: Optional[str]
+    status: Optional[str]
+    documents: Optional[List[str]] = []
+    owner: Optional[str]
+    updatedAt: Optional[str]
+
+class CaseDetailResponse(BaseModel):
+    id: str
+    companyName: Optional[str]
+    siret: Optional[str]
+    status: Optional[str]
+    documents: Optional[List[str]] = []
+    contact: Optional[str]
+    sector: Optional[str]
+    updatedAt: Optional[str]
+
+class CaseListResponse(BaseModel):
+    data: List[CaseResponse]

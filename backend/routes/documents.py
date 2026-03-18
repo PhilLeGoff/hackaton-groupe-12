@@ -5,10 +5,16 @@ from fastapi.responses import StreamingResponse
 from config.database import document_collection
 from bson import ObjectId
 from bson.errors import InvalidId
-from schemas.document import DocumentUpdate
+from schemas.document import DocumentUpdate, PaginatedDocumentResponse, DocumentDetailResponse, OCRMetricsResponse
 import httpx
 from params import HDFS_WEBHDFS_URL
 from typing import Optional
+from services.ocr_metrics import (
+    character_error_rate,
+    word_error_rate,
+    field_accuracy,
+    percentage,
+)
 
 _router = APIRouter(prefix="/api/documents", tags=["documents"])
 
@@ -47,7 +53,7 @@ def _get_anomalies(doc: dict) -> list:
     return []
 
 # Get all documents with pagination, filtering by status and type
-@_router.get("")
+@_router.get("", response_model=PaginatedDocumentResponse)
 async def get_documents(
     limit: int = Query(10, ge=1, le=100),
     offset: int = Query(0, ge=0),
@@ -93,7 +99,7 @@ async def get_documents(
         )
 
 # Get document by ID
-@_router.get("/{document_id}")
+@_router.get("/{document_id}", response_model=DocumentDetailResponse)
 async def get_document(document_id: str):
     try:
         oid = ObjectId(document_id)
@@ -165,3 +171,43 @@ async def download_document(document_id: str):
                 "Content-Disposition": f"attachment; filename={document_id}"
             }
         )
+        
+# Get OCR metrics for a document
+@_router.get("/{document_id}/metrics", response_model=OCRMetricsResponse)
+async def get_document_metrics(document_id: str):
+    try:
+        oid = ObjectId(document_id)
+    except InvalidId:
+        raise HTTPException(status_code=400, detail="Invalid document ID")
+
+    doc = await document_collection.find_one({"_id": oid})
+
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    ocr_text = doc.get("ocr_text", "")
+
+    reference_text = doc.get("reference_text", "")
+
+    cer = character_error_rate(reference_text, ocr_text)
+    wer = word_error_rate(reference_text, ocr_text)
+
+    extracted_fields = {
+        f["label"]: f["value"]
+        for f in doc.get("extracted_fields", [])
+    }
+
+    expected_fields = doc.get("expected_fields", {})
+
+    field_acc = field_accuracy(expected_fields, extracted_fields)
+
+    return {
+        "character_error_rate": cer,
+        "word_error_rate": wer,
+        "field_accuracy": field_acc,
+        "summary": {
+            "cer_percent": percentage(cer),
+            "wer_percent": percentage(wer),
+            "field_accuracy_percent": percentage(field_acc["accuracy"]),
+        },
+    }

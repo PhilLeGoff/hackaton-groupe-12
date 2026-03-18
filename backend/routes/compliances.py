@@ -3,12 +3,12 @@ from bson import ObjectId
 from config.database import compliance_collection
 from bson import ObjectId
 from bson.errors import InvalidId
-from schemas.compliance import ComplianceCreate, ComplianceUpdate
+from schemas.compliance import ComplianceCreate, ComplianceUpdate, ComplianceResponse, ComplianceListResponse
 
 _router = APIRouter(prefix="/api/compliances", tags=["compliances"])
 
 # Get all compliances
-@_router.get("")
+@_router.get("", response_model=ComplianceListResponse)
 async def get_compliances():
     compliances = []
     async for comp in compliance_collection.find():
@@ -22,7 +22,7 @@ async def get_compliances():
     return compliances
 
 # Get compliance by ID
-@_router.get("/{compliance_id}")
+@_router.get("/{compliance_id}", response_model=ComplianceResponse)
 async def get_compliance(compliance_id: str):
     comp = await compliance_collection.find_one({"_id": ObjectId(compliance_id)})
     if not comp:
