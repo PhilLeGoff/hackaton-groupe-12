@@ -3,12 +3,12 @@ from bson import ObjectId
 from config.database import case_collection
 from bson import ObjectId
 from bson.errors import InvalidId
-from schemas.case import CaseCreate, CaseUpdate
+from schemas.case import CaseCreate, CaseUpdate, CaseDetailResponse, CaseListResponse
 
 _router = APIRouter(prefix="/api/cases", tags=["cases"])
 
 # Get all cases
-@_router.get("")
+@_router.get("", response_model=CaseListResponse)
 async def get_cases():
     try:
         # comment: 
@@ -29,7 +29,7 @@ async def get_cases():
     # end try
 
 # Get case by ID
-@_router.get("/{case_id}")
+@_router.get("/{case_id}", response_model=CaseDetailResponse)
 async def get_case(case_id: str):
     try:
         # comment: 
@@ -53,7 +53,7 @@ async def get_case(case_id: str):
     }
 
 # Create case
-@_router.post("")
+@_router.post("", response_model=CaseDetailResponse)
 async def create_case(payload: CaseCreate):
     case = payload.model_dump()
     case["status"] = "pending"
