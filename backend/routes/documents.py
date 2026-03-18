@@ -58,7 +58,8 @@ async def get_documents(
     limit: int = Query(10, ge=1, le=100),
     offset: int = Query(0, ge=0),
     status: Optional[str] = None,
-    type: Optional[str] = None
+    type: Optional[str] = None,
+    case_id: Optional[str] = None
 ):
     documents = []
     query = {}
@@ -66,6 +67,11 @@ async def get_documents(
     try:
         if status:
             query["status"] = status
+        if case_id:
+            try:
+                query["case_id"] = ObjectId(case_id)
+            except InvalidId:
+                raise HTTPException(status_code=400, detail="Invalid case_id")
 
         cursor = document_collection.find(query).skip(offset).limit(limit)
 

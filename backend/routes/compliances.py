@@ -40,6 +40,26 @@ async def get_compliance(compliance_id: str):
         "decisionHistory": comp.get("decision_history", [])
     }
   
+# Get compliance by case ID
+@_router.get("/case/{case_id}", response_model=ComplianceResponse)
+async def get_compliance_by_case(case_id: str):
+    try:
+        oid = ObjectId(case_id)
+    except InvalidId:
+        raise HTTPException(status_code=400, detail="Invalid case ID")
+
+    comp = await compliance_collection.find_one({"case_id": oid})
+    if not comp:
+        raise HTTPException(status_code=404, detail="No compliance found for this case")
+
+    return {
+        "id": str(comp["_id"]),
+        "globalChecks": comp.get("global_checks", []),
+        "requiredDocuments": comp.get("required_documents", []),
+        "complianceAnomalies": comp.get("anomalies", []),
+        "decisionHistory": comp.get("decision_history", [])
+    }
+
 # Create compliance
 @_router.post("")
 async def create_compliance(payload: ComplianceCreate):
