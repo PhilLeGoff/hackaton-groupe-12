@@ -10,7 +10,8 @@ import {
   documentAnomalies as fallbackDocumentAnomalies,
   timeline as fallbackTimeline,
 } from "../data/mockDocuments";
-import { getDocumentById } from "../api/documents";
+import { getDocumentById, updateDocument, downloadDocument } from "../api/documents";
+import { api } from "../api/axios";
 
 const fallbackDocumentData = {
   type: "Facture",
@@ -18,7 +19,8 @@ const fallbackDocumentData = {
   fileName: "facture_alpha.pdf",
   confidence: "94%",
   status: "À revoir",
-  updatedAt: "Aujourd’hui à 14:00",
+  updatedAt: "Aujourd'hui à 14:00",
+  caseId: null,
 };
 
 const normalizeDocument = (item) => ({
@@ -33,7 +35,8 @@ const normalizeDocument = (item) => ({
     item.confidence_score ||
     "94%",
   status: item.status || item.analysisStatus || "À revoir",
-  updatedAt: item.updatedAt || item.updated_at || "Aujourd’hui",
+  updatedAt: item.updatedAt || item.updated_at || "Aujourd'hui",
+  caseId: item.caseId || item.case_id || null,
 });
 
 const normalizeExtractedFields = (data) => {
@@ -44,40 +47,43 @@ const normalizeExtractedFields = (data) => {
       confidence: field.confidence || "90%",
     }));
   }
-
   return fallbackExtractedFields;
 };
 
 const normalizeAnomalies = (data) => {
   if (Array.isArray(data?.anomalies)) {
     return data.anomalies.map((item) => ({
-      title: item.title || item.name || "Anomalie détectée",
+      title: item.title || item.name || item.field || "Anomalie détectée",
       description: item.description || item.message || "Aucun détail fourni.",
       level: item.level || "warning",
     }));
   }
-
   return fallbackDocumentAnomalies;
 };
 
 const normalizeTimeline = (data) => {
   if (Array.isArray(data?.timeline)) {
     return data.timeline.map((item) => ({
-      step: item.step || item.label || "Étape",
+      step: item.step || item.action || item.label || "Étape",
       status: item.status || "En attente",
       date: item.date || item.timestamp || "Non renseigné",
     }));
   }
-
   return fallbackTimeline;
 };
 
 const getConfidenceVariant = (confidence) => {
   const value = parseInt(confidence, 10);
-
   if (value >= 95) return "success";
   if (value >= 85) return "warning";
   return "danger";
+};
+
+const getFileType = (filename) => {
+  const ext = (filename || "").split(".").pop().toLowerCase();
+  if (ext === "pdf") return "pdf";
+  if (["jpg", "jpeg", "png", "gif", "webp", "bmp"].includes(ext)) return "image";
+  return "other";
 };
 
 const getAnomalyClasses = (level) => {
@@ -100,6 +106,10 @@ export const DocumentDetailsPage = () => {
   const [timeline, setTimeline] = useState(fallbackTimeline);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [actionLoading, setActionLoading] = useState("");
+  const [editMode, setEditMode] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const [previewError, setPreviewError] = useState(false);
 
   useEffect(() => {
     const loadDocument = async () => {
@@ -114,6 +124,12 @@ export const DocumentDetailsPage = () => {
           setFields(normalizeExtractedFields(documentResponse));
           setAnomalies(normalizeAnomalies(documentResponse));
           setTimeline(normalizeTimeline(documentResponse));
+
+          const fname = documentResponse.filename || documentResponse.fileName || documentResponse.name || "";
+          const ftype = getFileType(fname);
+          if (ftype === "pdf" || ftype === "image") {
+            setPreviewUrl(`${api.defaults.baseURL}/api/documents/${documentId}/download`);
+          }
         } else {
           setDocumentData(fallbackDocumentData);
           setFields(fallbackExtractedFields);
@@ -123,7 +139,7 @@ export const DocumentDetailsPage = () => {
       } catch (err) {
         console.error("Erreur chargement document:", err);
         setError(
-          "Impossible de charger le document depuis l’API. Affichage des données de démonstration.",
+          "Impossible de charger le document depuis l'API. Affichage des données de démonstration.",
         );
         setDocumentData(fallbackDocumentData);
         setFields(fallbackExtractedFields);
@@ -137,10 +153,60 @@ export const DocumentDetailsPage = () => {
     loadDocument();
   }, [documentId]);
 
+  const handleDownload = async () => {
+    try {
+      setActionLoading("download");
+      const blob = await downloadDocument(documentId);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = documentData.fileName || `document-${documentId}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Erreur téléchargement:", err);
+      setError("Impossible de télécharger le document.");
+    } finally {
+      setActionLoading("");
+    }
+  };
+
+  const handleValidate = async () => {
+    try {
+      setActionLoading("validate");
+      await updateDocument(documentId, { status: "validated" });
+      setDocumentData((prev) => ({ ...prev, status: "Validé" }));
+    } catch (err) {
+      console.error("Erreur validation:", err);
+      setError("Impossible de valider le document.");
+    } finally {
+      setActionLoading("");
+    }
+  };
+
+  const handleMarkReview = async () => {
+    try {
+      setActionLoading("review");
+      await updateDocument(documentId, { status: "to_review" });
+      setDocumentData((prev) => ({ ...prev, status: "À revoir" }));
+    } catch (err) {
+      console.error("Erreur marquage:", err);
+      setError("Impossible de marquer le document.");
+    } finally {
+      setActionLoading("");
+    }
+  };
+
+  const backLink = documentData.caseId
+    ? `/crm/${documentData.caseId}`
+    : "/crm";
+
   return (
     <Layout
       title={`Analyse du document #${documentId}`}
-      subtitle="Visualise le document, consulte les champs extraits par l’IA, repère les anomalies et prépare la validation métier."
+      subtitle="Visualise le document, consulte les champs extraits par l'IA, repère les anomalies et prépare la validation métier."
     >
       <div className="space-y-8">
         {error && <ErrorAlert message={error} />}
@@ -162,7 +228,7 @@ export const DocumentDetailsPage = () => {
               <StatCard
                 title="Confiance globale"
                 value={documentData.confidence}
-                subtitle="Qualité moyenne d’extraction"
+                subtitle="Qualité moyenne d'extraction"
               />
               <StatCard
                 title="Anomalies"
@@ -186,11 +252,15 @@ export const DocumentDetailsPage = () => {
                 subtitle="Prévisualisation du fichier analysé par le moteur documentaire."
                 rightElement={
                   <div className="flex gap-3">
-                    <button className="rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">
-                      Télécharger
+                    <button
+                      onClick={handleDownload}
+                      disabled={!!actionLoading}
+                      className="rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                    >
+                      {actionLoading === "download" ? "Téléchargement..." : "Télécharger"}
                     </button>
                     <Link
-                      to="/crm"
+                      to={backLink}
                       className="rounded-2xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800"
                     >
                       Retour dossier
@@ -199,19 +269,39 @@ export const DocumentDetailsPage = () => {
                 }
                 className="xl:col-span-2"
               >
-                <div className="flex h-[520px] items-center justify-center rounded-[28px] border-2 border-dashed border-slate-300 bg-slate-50 text-center">
-                  <div>
-                    <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-900 text-lg font-bold text-white">
-                      PDF
+                {previewUrl && !previewError ? (
+                  getFileType(documentData.fileName) === "pdf" ? (
+                    <iframe
+                      src={previewUrl}
+                      title="Aperçu du document"
+                      className="h-[520px] w-full rounded-[28px] border-0"
+                      onError={() => setPreviewError(true)}
+                    />
+                  ) : (
+                    <img
+                      src={previewUrl}
+                      alt="Aperçu du document"
+                      className="h-[520px] w-full rounded-[28px] object-contain bg-slate-50"
+                      onError={() => setPreviewError(true)}
+                    />
+                  )
+                ) : (
+                  <div className="flex h-[520px] items-center justify-center rounded-[28px] border-2 border-dashed border-slate-300 bg-slate-50 text-center">
+                    <div>
+                      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-900 text-lg font-bold text-white">
+                        {getFileType(documentData.fileName) === "pdf" ? "PDF" : "DOC"}
+                      </div>
+                      <p className="mt-4 text-lg font-semibold text-slate-900">
+                        Aperçu non disponible
+                      </p>
+                      <p className="mt-2 max-w-sm text-sm leading-6 text-slate-500">
+                        {previewError
+                          ? "Impossible de charger l'aperçu. Utilisez le bouton Télécharger."
+                          : "Ce format ne supporte pas la prévisualisation en ligne."}
+                      </p>
                     </div>
-                    <p className="mt-4 text-lg font-semibold text-slate-900">
-                      Aperçu du document
-                    </p>
-                    <p className="mt-2 max-w-sm text-sm leading-6 text-slate-500">
-                      Cette zone affichera l’aperçu PDF ou image une fois le viewer connecté à l’API.
-                    </p>
                   </div>
-                </div>
+                )}
               </SectionCard>
 
               <div className="space-y-6">
@@ -242,14 +332,25 @@ export const DocumentDetailsPage = () => {
 
                 <SectionCard title="Actions">
                   <div className="flex flex-col gap-3">
-                    <button className="rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-700">
-                      Valider l’extraction
+                    <button
+                      onClick={handleValidate}
+                      disabled={!!actionLoading}
+                      className="rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+                    >
+                      {actionLoading === "validate" ? "Validation..." : "Valider l'extraction"}
                     </button>
-                    <button className="rounded-2xl bg-amber-500 px-4 py-3 text-sm font-semibold text-white hover:bg-amber-600">
-                      Marquer à revoir
+                    <button
+                      onClick={handleMarkReview}
+                      disabled={!!actionLoading}
+                      className="rounded-2xl bg-amber-500 px-4 py-3 text-sm font-semibold text-white hover:bg-amber-600 disabled:opacity-50"
+                    >
+                      {actionLoading === "review" ? "En cours..." : "Marquer à revoir"}
                     </button>
-                    <button className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 hover:bg-slate-50">
-                      Corriger les champs
+                    <button
+                      onClick={() => setEditMode((prev) => !prev)}
+                      className={`rounded-2xl border px-4 py-3 text-sm font-semibold hover:bg-slate-50 ${editMode ? "border-indigo-300 bg-indigo-50 text-indigo-700" : "border-slate-200 bg-white text-slate-800"}`}
+                    >
+                      {editMode ? "Terminer l'édition" : "Corriger les champs"}
                     </button>
                   </div>
                 </SectionCard>
@@ -261,7 +362,19 @@ export const DocumentDetailsPage = () => {
                 title="Champs extraits"
                 subtitle="Valeurs détectées automatiquement sur le document."
                 rightElement={
-                  <button className="rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+                  <button
+                    onClick={() => {
+                      const json = JSON.stringify(fields, null, 2);
+                      const blob = new Blob([json], { type: "application/json" });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement("a");
+                      a.href = url;
+                      a.download = `extracted-fields-${documentId}.json`;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                    }}
+                    className="rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                  >
                     Export JSON
                   </button>
                 }
@@ -273,11 +386,24 @@ export const DocumentDetailsPage = () => {
                       key={`${field.label}-${index}`}
                       className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 md:flex-row md:items-center md:justify-between"
                     >
-                      <div>
+                      <div className="flex-1">
                         <p className="text-sm text-slate-500">{field.label}</p>
-                        <p className="mt-1 text-base font-semibold text-slate-900">
-                          {field.value}
-                        </p>
+                        {editMode ? (
+                          <input
+                            type="text"
+                            value={field.value}
+                            onChange={(e) => {
+                              const updated = [...fields];
+                              updated[index] = { ...updated[index], value: e.target.value };
+                              setFields(updated);
+                            }}
+                            className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-base font-semibold text-slate-900 focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                          />
+                        ) : (
+                          <p className="mt-1 text-base font-semibold text-slate-900">
+                            {field.value}
+                          </p>
+                        )}
                       </div>
 
                       <StatusBadge
@@ -291,7 +417,7 @@ export const DocumentDetailsPage = () => {
 
               <SectionCard
                 title="Pipeline de traitement"
-                subtitle="Suivi des étapes d’analyse du document."
+                subtitle="Suivi des étapes d'analyse du document."
               >
                 <div className="space-y-4">
                   {timeline.map((item, index) => (
@@ -320,7 +446,7 @@ export const DocumentDetailsPage = () => {
 
             <SectionCard
               title="Anomalies détectées"
-              subtitle="Points d’attention à vérifier avant validation définitive."
+              subtitle="Points d'attention à vérifier avant validation définitive."
               rightElement={
                 <StatusBadge label={`${anomalies.length} alertes`} variant="warning" />
               }
