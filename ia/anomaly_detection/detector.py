@@ -248,6 +248,91 @@ def _parse_date(value: str | None) -> date | None:
         return None
 
 
+def validate_cross_documents(documents: list[dict]) -> dict:
+    """Cross-validate entities across multiple documents of the same case.
+
+    Each document should have: {type, entities: {siret, vat_number, iban, ...}, ...}
+    Returns {"anomalies": [{"field": str, "message": str, "level": str}], "all_sirets_match": bool}
+    """
+    anomalies: list[dict] = []
+
+    # Collect all SIRETs from documents
+    sirets = {}
+    for doc in documents:
+        ents = doc.get("entities") or doc.get("extracted_fields") or {}
+        if isinstance(ents, list):
+            ents = {f.get("label", f.get("field", "")): f.get("value") for f in ents}
+        siret = ents.get("siret") or ents.get("supplier_siret")
+        doc_type = doc.get("type") or doc.get("document_type") or "Document"
+        if siret:
+            clean = re.sub(r"\s+", "", siret)
+            sirets[doc_type] = clean
+
+    # Check SIRET coherence across documents
+    unique_sirets = set(sirets.values())
+    all_sirets_match = len(unique_sirets) <= 1
+
+    if len(unique_sirets) > 1:
+        details = ", ".join(f"{t}: {s}" for t, s in sirets.items())
+        anomalies.append({
+            "field": "siret_cross",
+            "message": f"SIRET different entre documents du meme dossier ({details})",
+            "level": "error",
+        })
+
+    # Check for expired URSSAF attestations
+    today = date.today()
+    for doc in documents:
+        doc_type = doc.get("type") or doc.get("document_type") or ""
+        if "urssaf" not in doc_type.lower() and "attestation" not in doc_type.lower():
+            continue
+        ents = doc.get("entities") or doc.get("extracted_fields") or {}
+        if isinstance(ents, list):
+            ents = {f.get("label", f.get("field", "")): f.get("value") for f in ents}
+        expiry = ents.get("expiry_date") or ents.get("expiration_date") or ents.get("valid_until")
+        if expiry:
+            exp_date = _parse_date(expiry)
+            if exp_date and exp_date < today:
+                anomalies.append({
+                    "field": "urssaf_expiry",
+                    "message": f"Attestation URSSAF expiree depuis le {expiry}",
+                    "level": "error",
+                })
+            elif exp_date:
+                days_left = (exp_date - today).days
+                if days_left < 30:
+                    anomalies.append({
+                        "field": "urssaf_expiry",
+                        "message": f"Attestation URSSAF expire bientot ({days_left} jours restants, le {expiry})",
+                        "level": "warning",
+                    })
+
+    # Check VAT coherence across documents
+    vats = {}
+    for doc in documents:
+        ents = doc.get("entities") or doc.get("extracted_fields") or {}
+        if isinstance(ents, list):
+            ents = {f.get("label", f.get("field", "")): f.get("value") for f in ents}
+        vat = ents.get("vat_number") or ents.get("supplier_vat_number") or ents.get("vat")
+        doc_type = doc.get("type") or doc.get("document_type") or "Document"
+        if vat:
+            vats[doc_type] = vat
+
+    unique_vats = set(vats.values())
+    if len(unique_vats) > 1:
+        details = ", ".join(f"{t}: {v}" for t, v in vats.items())
+        anomalies.append({
+            "field": "vat_cross",
+            "message": f"TVA differente entre documents ({details})",
+            "level": "warning",
+        })
+
+    return {
+        "anomalies": anomalies,
+        "all_sirets_match": all_sirets_match,
+    }
+
+
 def _check_duplicates(
     anomalies: list[dict],
     document_id: str,
