@@ -40,9 +40,8 @@ FOLDER_TO_LABEL = {
     "kbis": "KBIS",
 }
 
-
 def load_dataset(data_dir: Path) -> tuple[list[str], list[str]]:
-    """Load text samples and labels from generated dataset directories."""
+    """Load .txt samples (silver layer) and labels from generated dataset directories."""
     texts: list[str] = []
     labels: list[str] = []
     seen_files: set[str] = set()

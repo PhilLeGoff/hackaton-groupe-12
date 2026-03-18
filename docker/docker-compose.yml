@@ -152,6 +152,7 @@ services:
   airflow-scheduler:
     image: apache/airflow:2.9.1-python3.11
     container_name: docuscan-airflow-scheduler
+    user: root
     environment: *airflow-env
     volumes:
       - ../airflow/dags:/opt/airflow/dags
@@ -159,7 +160,7 @@ services:
       - ../airflow/requirements.txt:/opt/airflow/requirements.txt
       - ../ia:/opt/airflow/ia
     command: >
-      bash -c "pip install --no-cache-dir -r /opt/airflow/requirements.txt && airflow scheduler"
+      bash -c "apt-get update && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-fra poppler-utils && su airflow -c 'pip install --no-cache-dir -r /opt/airflow/requirements.txt && airflow scheduler'"
     depends_on:
       airflow-init:
         condition: service_completed_successfully

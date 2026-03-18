@@ -12,5 +12,5 @@ ALGORITHM = "HS256"
 
 HDFS_WEBHDFS_URL = os.getenv("HDFS_WEBHDFS_URL", "http://hdfs-namenode:9870/webhdfs/v1")
 AIRFLOW_BASE_URL = os.getenv("AIRFLOW_BASE_URL", "http://airflow-webserver:8080")
-AIRFLOW_USERNAME = os.getenv("AIRFLOW_USERNAME")
-AIRFLOW_PASSWORD = os.getenv("AIRFLOW_PASSWORD")
+AIRFLOW_USERNAME = os.getenv("AIRFLOW_USERNAME", "admin")
+AIRFLOW_PASSWORD = os.getenv("AIRFLOW_PASSWORD", "admin")
