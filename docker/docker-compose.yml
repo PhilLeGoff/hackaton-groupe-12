@@ -42,15 +42,14 @@ services:
     ports:
       - "5173:5173"
     environment:
-      - APP_PORT=8000
-      - API_HOST=backend
+    - VITE_API_URL=http://backend:8000
     volumes:
-      - ../frontend/src:/app/src
-      - ../frontend/public:/app/public
-      - ../frontend/index.html:/app/index.html
-      - ../frontend/vite.config.js:/app/vite.config.js
+    - ../frontend/src:/app/src
+    - ../frontend/public:/app/public
+    - ../frontend/index.html:/app/index.html
+    - ../frontend/vite.config.js:/app/vite.config.js
     depends_on:
-      - backend
+    - backend
 
   # HDFS Namenode — port 9870 (WebUI), 9000 (RPC)
   hdfs-namenode:
@@ -125,6 +124,7 @@ services:
       "
     volumes:
       - ../airflow/requirements.txt:/opt/airflow/requirements.txt
+      - ../airflow/logs:/opt/airflow/logs`
     depends_on:
       airflow-postgres:
         condition: service_healthy

@@ -5,3 +5,4 @@ logs/
 .git
 venv*
 .venv*
+test

@@ -9,6 +9,7 @@
 Le pipeline est coherent de bout en bout.
 
 **Ce qui manque** :
+
 - Frontend : 18 boutons sans handler, 6 liens hardcodes, 2 pages fetch() hardcode, mock data, pas de viewer PDF
 - Backend : pas de CRUD cases/compliances, pas de pagination, code mort, validation ObjectId partielle
 - IA : aucun modele ML (tout est regex/regles), pas de bruit OCR, pas de robustesse
@@ -323,24 +324,27 @@ DI3 (test pipeline Docker)          ──→ Toute l'equipe (validation end-to-
 ## ORDRE SUGGERE
 
 ● Matin J1 — Tout le monde en parallèle :
-  - FS1 : CRUD cases/compliances + validation ObjectId + supprimer code mort
-  - FS2 : branding Header, fixer liens hardcodés, filtres CRM
-  - FS3 : fix anomalies/timeline useState, migration fetch→axios, fix URLs
-  - FS4 : .dockerignore, Tesseract dans Dockerfile, rebuild conteneurs
-  - DI1 : multi-format output (PDF+PNG+JPG+JPEG), SIRET/IBAN valides, générateur KBIS
-  - DI2 : intégrer modèle pré-entraîné (zero-shot ou TF-IDF+SVM) + tests
-  - DI3 : tests anomaly detection + tester pipeline Docker
+
+- FS1 : CRUD cases/compliances + validation ObjectId + supprimer code mort
+- FS2 : branding Header, fixer liens hardcodés, filtres CRM
+- FS3 : fix anomalies/timeline useState, migration fetch→axios, fix URLs
+- FS4 : .dockerignore, Tesseract dans Dockerfile, rebuild conteneurs
+- DI1 : multi-format output (PDF+PNG+JPG+JPEG), SIRET/IBAN valides, générateur KBIS
+- DI2 : intégrer modèle pré-entraîné (zero-shot ou TF-IDF+SVM) + tests
+- DI3 : tests anomaly detection + tester pipeline Docker
 
   Après-midi J1 — Features principales :
-  - FS1 : endpoint download, auto-création case par SIRET
-  - FS2 : refonte Dashboard/Upload (style + axios), CaseDetailsPage→API
-  - FS3 : viewer PDF/image, boutons action (valider/rejeter/télécharger)
-  - FS4 : tests pytest
-  - DI1 : anomalies sur devis/RIB/URSSAF, pipeline bruit OCR, dataset large (500+/type)
-  - DI2 : fine-tuning classification, améliorer NER (spaCy + fuzzy), formats dates
-  - DI3 : Isolation Forest + script train, scoring d'anomalie
+
+- FS1 : endpoint download, auto-création case par SIRET
+- FS2 : refonte Dashboard/Upload (style + axios), CaseDetailsPage→API
+- FS3 : viewer PDF/image, boutons action (valider/rejeter/télécharger)
+- FS4 : tests pytest
+- DI1 : anomalies sur devis/RIB/URSSAF, pipeline bruit OCR, dataset large (500+/type)
+- DI2 : fine-tuning classification, améliorer NER (spaCy + fuzzy), formats dates
+- DI3 : Isolation Forest + script train, scoring d'anomalie
 
   Matin J2 — Finalisation + intégration :
-  - FS1+FS2+FS3 : pagination, stats dynamiques, toastify, polish UX
-  - FS4 : CI pipeline
-  - DI1+DI2+DI3 : benchmark complet (matrice de confusion, F1), validation croisée TVA, test end-to-end Docker
+
+- FS1+FS2+FS3 : pagination, stats dynamiques, toastify, polish UX
+- FS4 : CI pipeline
+- DI1+DI2+DI3 : benchmark complet (matrice de confusion, F1), validation croisée TVA, test end-to-end Docker
