@@ -1,11 +1,13 @@
 from fastapi import APIRouter, HTTPException
 from bson import ObjectId
 from config.database import case_collection
-from model.case import CaseUpdateModel,CaseCreateModel
+from bson import ObjectId
+from bson.errors import InvalidId
+from schemas.case import CaseCreate, CaseUpdate
 
 _router = APIRouter(prefix="/api/cases", tags=["cases"])
 
-
+# Get all cases
 @_router.get("")
 async def get_cases():
     try:
@@ -26,7 +28,7 @@ async def get_cases():
         raise HTTPException(status_code=500,detail=f"erreur de connection : {e}")
     # end try
 
-
+# Get case by ID
 @_router.get("/{case_id}")
 async def get_case(case_id: str):
     try:
@@ -47,45 +49,36 @@ async def get_case(case_id: str):
         "documents": case.get("documents"),
         "contact": case.get("contact"),
         "sector": case.get("sector"),
-        "updatedAt": case.get("updated_at"),
+        "updatedAt": case.get("updated_at")
     }
 
+# Create case
+@_router.post("")
+async def create_case(payload: CaseCreate):
+    case = payload.model_dump()
+    case["status"] = "pending"
 
+    result = case_collection.insert_one(case)
+    case["_id"] = str(result.inserted_id)
 
+    return case
+      
+# Update case
+@_router.put("/{case_id}")
+async def update_case(case_id: str, payload: CaseUpdate):
+    try:
+        object_id = ObjectId(case_id)
+    except InvalidId:
+        raise HTTPException(status_code=400, detail="Invalid case ID")
 
-@_router.put("/cases/{id}")
-async def update_case(id: str, payload: CaseUpdateModel):
-    # Vérification ID MongoDB
-    if not ObjectId.is_valid(id):
-        raise HTTPException(status_code=400, detail="ID invalide")
+    update_data = {k: v for k, v in payload.model_dump().items() if v is not None}
 
-    update_data = {k: v for k, v in payload.dict().items() if v is not None}
-
-    if not update_data:
-        raise HTTPException(status_code=400, detail="Aucune donnée à mettre à jour")
-
-    result = await case_collection.update_one(
-        {"_id": ObjectId(id)},
+    result = case_collection.update_one(
+        {"_id": object_id},
         {"$set": update_data}
     )
 
     if result.matched_count == 0:
-        raise HTTPException(status_code=404, detail="Case non trouvée")
+        raise HTTPException(status_code=404, detail="Case not found")
 
-    return {"message": "Case mise à jour", "updated": update_data}
-
-
-@_router.post("/")
-async def update_case(payload: CaseCreateModel):
-    try:
-        result = await case_collection.insert_one(payload)
-        return{
-            "message":"le document a été crée",
-            "data":result.__inserted_id
-        }
-    except:
-        raise HTTPException(detail="erreur de se connecter à la db",status_code=500)
-
-
-
-
+    return {"message": "Case updated"}

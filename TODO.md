@@ -18,7 +18,7 @@ Le pipeline est coherent de bout en bout.
 
 ## FS1 — Backend CRUD + Securite
 
-### P0 — Bloquant
+### P0 — Bloquant (DONE)
 
 - [ ] **POST `/api/cases`** — Creer un dossier (company_name, siret, contact, sector)
   - Fichier : `backend/routes/cases.py`
