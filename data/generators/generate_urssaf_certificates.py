@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Generate synthetic URSSAF vigilance certificates for OCR and extraction tests."""
 
 from __future__ import annotations
 
@@ -15,11 +14,11 @@ from pdf_utils import write_text_pdf
 
 try:
     from faker import Faker
-except ImportError:  # pragma: no cover - optional dependency
+except ImportError:
     Faker = None
 
 
-ROOT_DIR = Path(__file__).resolve().parents[1]
+ROOT_DIR = Path(__file__).resolve().parents[2]
 DEFAULT_OUTPUT_DIR = ROOT_DIR / "data" / "generated" / "pdfs" / "attestations_urssaf"
 COMPANY_SUFFIXES = ["SARL", "SAS", "EURL", "SCI", "SA"]
 LAST_NAMES = ["Martin", "Bernard", "Robert", "Durand", "Dubois", "Moreau", "Simon"]

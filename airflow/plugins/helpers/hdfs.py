@@ -1,5 +1,3 @@
-"""Lecture/écriture HDFS via WebHDFS REST API."""
-
 import os
 import requests
 
@@ -15,7 +13,6 @@ def read(path: str) -> bytes:
 
 
 def write(path: str, data: bytes, overwrite: bool = True):
-    # Créer les dossiers parents automatiquement
     parent = "/".join(path.split("/")[:-1])
     if parent:
         mkdir(parent)

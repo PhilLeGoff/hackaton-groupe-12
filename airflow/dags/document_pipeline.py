@@ -1,5 +1,3 @@
-"""DAG document_pipeline — déclenché via API avec {"document_id": "<id_mongo>"}"""
-
 from datetime import datetime, timedelta
 import json
 import logging
@@ -12,7 +10,6 @@ from helpers.hdfs import read as hdfs_read, write as hdfs_write
 
 logger = logging.getLogger("docuscan.pipeline")
 
-# Imports IA avec fallback placeholder
 try:
     from ia.ocr.pipeline import extract_text
 except ImportError:
@@ -20,15 +17,17 @@ except ImportError:
         return f"[PLACEHOLDER OCR] {content_type}, {len(raw_content)} bytes"
 
 try:
-    from ia.nlp.ner import extract as extract_ner
+    from ia.nlp.ner import extract as extract_ner, FIELD_DEFINITIONS
 except ImportError:
+    FIELD_DEFINITIONS = {}
     def extract_ner(ocr_text: str) -> dict:
         return {"siret": None, "vat": None, "amount_ht": None, "amount_ttc": None,
                 "issue_date": None, "expiration_date": None, "company_name": None, "iban": None}
 
 try:
-    from ia.classification.classifier import classify
+    from ia.classification.classifier import classify, EXPECTED_FIELDS_BY_TYPE
 except ImportError:
+    EXPECTED_FIELDS_BY_TYPE = {}
     def classify(ocr_text: str) -> dict:
         return {"document_type": "unknown", "confidence": 0.0}
 
@@ -134,7 +133,6 @@ def validate_coherence(**context):
     classification = context["ti"].xcom_pull(task_ids="classify_document", key="classification")
 
     try:
-        # Passe la collection MongoDB pour que Data/IA 2 puisse comparer avec d'autres documents
         collection = get_collection()
         validation_result = validate(entities, classification, document_id, collection=collection)
     except Exception as e:
@@ -166,20 +164,75 @@ def store_curated_hdfs(**context):
     context["ti"].xcom_push(key="curated_data", value=curated_data)
 
 
+def _build_extracted_fields(entities_details: dict) -> list:
+    """Build extracted fields list from detailed entities."""
+    fields = []
+    for field_name, field_def in FIELD_DEFINITIONS.items():
+        value = entities_details.get(field_name)
+        if not value:
+            continue
+        fields.append({
+            "label": field_def["label"],
+            "value": value,
+            "confidence": 95.0,
+        })
+    return fields
+
+
+def _compute_confidence(document_type: str, extracted_fields: list) -> int:
+    """Compute confidence score based on expected vs found fields."""
+    expected = EXPECTED_FIELDS_BY_TYPE.get(document_type, [])
+    if not expected:
+        return 70 if extracted_fields else 35
+    expected_labels = {
+        FIELD_DEFINITIONS[f]["label"]
+        for f in expected
+        if f in FIELD_DEFINITIONS
+    }
+    matched = sum(1 for f in extracted_fields if f["label"] in expected_labels)
+    ratio = matched / max(len(expected), 1)
+    return max(35, min(99, round(ratio * 100)))
+
+
 def sync_mongodb(**context):
     document_id = _get_document_id(context)
     curated_data = context["ti"].xcom_pull(task_ids="store_curated_hdfs", key="curated_data")
 
+    entities = curated_data.get("entities", {})
+    classification = curated_data.get("classification", {})
+    validation = curated_data.get("validation", {})
+
+    entities_details = entities.get("details", entities)
+    extracted_fields = _build_extracted_fields(entities_details)
+    document_type = classification.get("document_type", "Document")
+    confidence = _compute_confidence(document_type, extracted_fields)
+    anomalies = validation.get("anomalies", [])
+    has_anomalies = not validation.get("is_valid", True)
+
+    now = datetime.utcnow().isoformat()
+    status = "Analyse terminee" if not has_anomalies else "A verifier"
+
     try:
         update_document(document_id, {
-            "status": "completed",
+            "status": status,
             "ocr_text": curated_data.get("ocr_text"),
-            "entities": curated_data.get("entities"),
-            "classification": curated_data.get("classification"),
-            "validation": curated_data.get("validation"),
+            "entities": entities,
+            "classification": classification,
+            "validation": validation,
+            "type": document_type,
+            "confidence": confidence,
+            "extracted_fields": extracted_fields,
+            "anomalies": anomalies,
+            "timeline": [
+                {"step": "Upload", "status": "completed", "date": now},
+                {"step": "OCR", "status": "completed", "date": now},
+                {"step": "Extraction NER", "status": "completed", "date": now},
+                {"step": "Classification", "status": "completed", "date": now},
+                {"step": "Validation", "status": status, "date": now},
+            ],
             "processed_at": datetime.utcnow(),
         })
-        logger.info(f"Document {document_id} → status: completed")
+        logger.info(f"Document {document_id} → status: {status}")
     except Exception as e:
         _set_error_status(document_id, "sync_mongodb", str(e))
         raise

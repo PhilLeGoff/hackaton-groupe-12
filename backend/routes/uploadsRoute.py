@@ -8,10 +8,6 @@ from bson import ObjectId
 from config.database import document_collection
 from params import HDFS_WEBHDFS_URL, AIRFLOW_BASE_URL
 
-from config.database import document_collection
-from services.document_processing import DocumentProcessingError, process_document
-from utils.extractorMetaData import extract_docx_metadata, extract_pdf_metadata
-
 _router = APIRouter()
 
 ALLOWED_MIME_TYPES = {
@@ -23,7 +19,7 @@ ALLOWED_MIME_TYPES = {
     "text/plain",
 }
 
-MAX_FILE_SIZE = 2 * 1024 * 1024  # 2 Mo
+MAX_FILE_SIZE = 2 * 1024 * 1024
 MAX_FILES = 3
 HDFS_USER = "root"
 
@@ -105,7 +101,6 @@ async def upload(files: list[UploadFile] = File(...)):
                 detail=f"Le fichier {file.filename} dépasse {MAX_FILE_SIZE // (1024 * 1024)} Mo",
             )
 
-        # Hash pour éviter les doublons
         file_hash = hashlib.sha256(content).hexdigest()
         existing = await document_collection.find_one({"file_hash": file_hash})
         if existing:
@@ -117,7 +112,6 @@ async def upload(files: list[UploadFile] = File(...)):
             })
             continue
 
-        # Sauvegarder métadonnées dans MongoDB
         doc = {
             "filename": file.filename,
             "content_type": file.content_type,
@@ -129,7 +123,6 @@ async def upload(files: list[UploadFile] = File(...)):
         insert_result = await document_collection.insert_one(doc)
         doc_id = str(insert_result.inserted_id)
 
-        # Écrire fichier dans HDFS /raw/{id}/
         hdfs_path = f"/raw/{doc_id}/{file.filename}"
         try:
             await _hdfs_write(hdfs_path, content)
@@ -140,7 +133,6 @@ async def upload(files: list[UploadFile] = File(...)):
             )
             raise HTTPException(status_code=500, detail=f"Erreur HDFS: {e}")
 
-        # Trigger DAG Airflow
         try:
             await _trigger_dag(doc_id)
         except Exception as e:

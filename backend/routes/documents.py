@@ -1,58 +1,89 @@
 from fastapi import APIRouter, HTTPException
 from bson import ObjectId
+from bson.errors import InvalidId
 from config.database import document_collection
 
 _router = APIRouter(prefix="/api/documents", tags=["documents"])
+
+
+def _get_type(doc: dict) -> str | None:
+    """Read document type from top-level or nested classification."""
+    doc_type = doc.get("type")
+    if doc_type:
+        return doc_type
+    classification = doc.get("classification")
+    if isinstance(classification, dict):
+        return classification.get("document_type")
+    return None
+
+
+def _get_confidence(doc: dict) -> float:
+    """Read confidence as a float from top-level or nested classification."""
+    confidence = doc.get("confidence")
+    if isinstance(confidence, (int, float)):
+        return float(confidence)
+    classification = doc.get("classification")
+    if isinstance(classification, dict):
+        conf = classification.get("confidence", 0)
+        if isinstance(conf, float) and conf <= 1.0:
+            return round(conf * 100)
+        return float(conf)
+    return 0.0
+
+
+def _get_anomalies(doc: dict) -> list:
+    """Read anomalies from top-level or nested validation."""
+    anomalies = doc.get("anomalies")
+    if isinstance(anomalies, list) and anomalies:
+        return anomalies
+    validation = doc.get("validation")
+    if isinstance(validation, dict):
+        return validation.get("anomalies", [])
+    return []
 
 
 @_router.get("")
 async def get_documents():
     documents = []
     try:
-         async for doc in document_collection.find():
+        async for doc in document_collection.find():
             documents.append({
-            "id": str(doc["_id"]),
-            "name": doc.get("name") or doc.get("filename"),
-            "type": doc.get("type"),
-            "status": doc.get("status"),
-            "confidence": f"{doc.get('confidence', 0)}%",
-         })
-         return documents
-        # comment: 
-    except Exception as e:
-        raise HTTPException(status_code=500,detail="impossible de se connecté à la base de donnée")
-    # end try
-   
-   
-   
-   
-   
-   
-   
-   
-   
+                "id": str(doc["_id"]),
+                "name": doc.get("name") or doc.get("filename"),
+                "type": _get_type(doc),
+                "status": doc.get("status"),
+                "confidence": _get_confidence(doc),
+            })
+        return documents
+    except Exception:
+        raise HTTPException(status_code=500, detail="Impossible de se connecter a la base de donnees")
 
 
 @_router.get("/{document_id}")
 async def get_document(document_id: str):
-    doc = await document_collection.find_one({"_id": ObjectId(document_id)})
+    try:
+        oid = ObjectId(document_id)
+    except InvalidId:
+        raise HTTPException(status_code=400, detail="ID de document invalide")
+
+    doc = await document_collection.find_one({"_id": oid})
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
 
     return {
         "id": str(doc["_id"]),
         "name": doc.get("name") or doc.get("filename"),
-        "type": doc.get("type"),
+        "type": _get_type(doc),
         "status": doc.get("status"),
-        "confidence": f"{doc.get('confidence', 0)}%",
+        "confidence": _get_confidence(doc),
         "ocr_text": doc.get("ocr_text"),
         "entities": doc.get("entities"),
         "classification": doc.get("classification"),
         "validation": doc.get("validation"),
         "extractedFields": [
-            {"label": f["label"], "value": f["value"], "confidence": f"{f.get('confidence', 0)}%"}
+            {"label": f["label"], "value": f["value"], "confidence": f.get("confidence", 0)}
             for f in doc.get("extracted_fields", [])
         ],
-        "anomalies": doc.get("anomalies", []),
+        "anomalies": _get_anomalies(doc),
         "timeline": doc.get("timeline", []),
     }

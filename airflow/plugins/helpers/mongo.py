@@ -1,5 +1,3 @@
-"""Connexion MongoDB sync pour les tasks Airflow."""
-
 import os
 from pymongo import MongoClient
 from bson import ObjectId
