@@ -136,7 +136,7 @@ async def update_document(document_id: str, payload: DocumentUpdate):
     except InvalidId:
         raise HTTPException(status_code=400, detail="Invalid document ID")
 
-    result = document_collection.update_one(
+    result = await document_collection.update_one(
         {"_id": object_id},
         {"$set": payload.model_dump()}
     )
@@ -150,25 +150,52 @@ async def update_document(document_id: str, payload: DocumentUpdate):
 @_router.get("/{document_id}/download")
 async def download_document(document_id: str):
     try:
-        ObjectId(document_id)
+        oid = ObjectId(document_id)
     except InvalidId:
         raise HTTPException(status_code=400, detail="Invalid document ID")
 
-    hdfs_path = f"/raw/{document_id}"
+    doc = await document_collection.find_one({"_id": oid})
+    filename = doc.get("filename") or doc.get("name") or document_id if doc else document_id
 
-    url = f"{HDFS_WEBHDFS_URL}{hdfs_path}?op=OPEN"
+    hdfs_dir = f"/raw/{document_id}"
 
     async with httpx.AsyncClient() as client:
-        response = await client.get(url, follow_redirects=True)
+        # List directory to find the actual file
+        list_url = f"{HDFS_WEBHDFS_URL}{hdfs_dir}?op=LISTSTATUS&user.name=root"
+        list_resp = await client.get(list_url)
+
+        if list_resp.status_code == 200:
+            files = list_resp.json().get("FileStatuses", {}).get("FileStatus", [])
+            if files:
+                file_name = files[0]["pathSuffix"]
+                hdfs_path = f"{hdfs_dir}/{file_name}"
+            else:
+                raise HTTPException(status_code=404, detail="File not found in HDFS")
+        else:
+            hdfs_path = hdfs_dir
+
+        # Open the file
+        open_url = f"{HDFS_WEBHDFS_URL}{hdfs_path}?op=OPEN&user.name=root"
+        response = await client.get(open_url, follow_redirects=True)
 
         if response.status_code != 200:
             raise HTTPException(status_code=404, detail="File not found in HDFS")
 
+        # Detect content type
+        content_type = "application/octet-stream"
+        lower = filename.lower()
+        if lower.endswith(".pdf"):
+            content_type = "application/pdf"
+        elif lower.endswith((".jpg", ".jpeg")):
+            content_type = "image/jpeg"
+        elif lower.endswith(".png"):
+            content_type = "image/png"
+
         return StreamingResponse(
-            response.aiter_bytes(),
-            media_type="application/octet-stream",
+            iter([response.content]),
+            media_type=content_type,
             headers={
-                "Content-Disposition": f"attachment; filename={document_id}"
+                "Content-Disposition": f'inline; filename="{filename}"'
             }
         )
         

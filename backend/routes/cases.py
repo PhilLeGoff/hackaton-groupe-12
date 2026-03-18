@@ -1,8 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from bson import ObjectId
-from config.database import case_collection, document_collection, compliance_collection
-from bson import ObjectId
 from bson.errors import InvalidId
+from config.database import case_collection, document_collection, compliance_collection
 from schemas.case import CaseCreate, CaseUpdate, CaseDetailResponse, CaseListResponse, CaseAutofillResponse, DocumentAutofill, ComplianceAutofill
 
 _router = APIRouter(prefix="/api/cases", tags=["cases"])
@@ -23,7 +22,7 @@ async def get_cases():
             "owner": case.get("owner"),
             "updatedAt": case.get("updated_at"),
             })
-        return cases
+        return {"data": cases}
     except Exception as e:
         raise HTTPException(status_code=500,detail=f"erreur de connection : {e}")
     # end try
@@ -32,11 +31,11 @@ async def get_cases():
 @_router.get("/{case_id}", response_model=CaseDetailResponse)
 async def get_case(case_id: str):
     try:
-        # comment: 
-        case = await case_collection.find_one({"_id": ObjectId(case_id)})
-    except Exception as e:
-        raise HTTPException(detail="erreur de se connecter à la db",status_code=500)
-    # end try
+        oid = ObjectId(case_id)
+    except InvalidId:
+        raise HTTPException(status_code=400, detail="Invalid case ID")
+
+    case = await case_collection.find_one({"_id": oid})
     
     if not case:
         raise HTTPException(status_code=404, detail="Case not found")
@@ -57,16 +56,18 @@ async def get_case(case_id: str):
 async def create_case(payload: CaseCreate):
     case = payload.model_dump()
     case["status"] = "pending"
-    try:
-        # comment: 
-        result = case_collection.insert_one(case)
-    except Exception as e:
-        raise HTTPException(detail="erreur de se connecter à la db",status_code=500)
-    # end try
-    
-    case["_id"] = str(result.inserted_id)
+    result = await case_collection.insert_one(case)
 
-    return case
+    return {
+        "id": str(result.inserted_id),
+        "companyName": case.get("company_name"),
+        "siret": case.get("siret"),
+        "status": case.get("status"),
+        "documents": case.get("documents", []),
+        "contact": case.get("contact"),
+        "sector": case.get("sector"),
+        "updatedAt": case.get("updated_at")
+    }
       
 # Update case
 @_router.put("/{case_id}")
@@ -79,7 +80,7 @@ async def update_case(case_id: str, payload: CaseUpdate):
     update_data = {k: v for k, v in payload.model_dump().items() if v is not None}
     try:
      # comment: 
-     result = case_collection.update_one(
+     result = await case_collection.update_one(
         {"_id": object_id},
         {"$set": update_data}
         )
