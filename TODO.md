@@ -20,34 +20,34 @@ Le pipeline est coherent de bout en bout.
 
 ### P0 — Bloquant (DONE)
 
-- [ ] **POST `/api/cases`** — Creer un dossier (company_name, siret, contact, sector)
+- [x] **POST `/api/cases`** — Creer un dossier (company_name, siret, contact, sector)
   - Fichier : `backend/routes/cases.py`
-- [ ] **PUT `/api/cases/{id}`** — Mettre a jour statut/infos d'un dossier
+- [x] **PUT `/api/cases/{id}`** — Mettre a jour statut/infos d'un dossier
   - Fichier : `backend/routes/cases.py`
-- [ ] **POST `/api/compliances`** — Creer un controle de conformite lie a un case
+- [x] **POST `/api/compliances`** — Creer un controle de conformite lie a un case
   - Fichier : `backend/routes/compliances.py`
-- [ ] **PUT `/api/compliances/{id}`** — Mettre a jour decision (valider/rejeter/revoir)
+- [x] **PUT `/api/compliances/{id}`** — Mettre a jour decision (valider/rejeter/revoir)
   - Fichier : `backend/routes/compliances.py`
-- [ ] **PUT `/api/documents/{id}`** — Corriger/valider un document (status, extracted_fields)
+- [x] **PUT `/api/documents/{id}`** — Corriger/valider un document (status, extracted_fields)
   - Fichier : `backend/routes/documents.py`
-- [ ] **Validation ObjectId** sur `cases/{id}` et `compliances/{id}`
+- [x] **Validation ObjectId** sur `cases/{id}` et `compliances/{id}`
   - Ajouter `try/except InvalidId` comme dans `documents.py`
 
 ### P1 — Important (DONE)
 
-- [ ] **GET `/api/documents/{id}/download`** — Telecharger le fichier original depuis HDFS `/raw/{id}/`
+- [x] **GET `/api/documents/{id}/download`** — Telecharger le fichier original depuis HDFS `/raw/{id}/`
   - Utiliser `httpx` pour lire HDFS WebHDFS et retourner un `StreamingResponse`
-- [ ] **Auto-creation de case** — Quand un document est traite, creer ou rattacher a un case par SIRET
+- [x] **Auto-creation de case** — Quand un document est traite, creer ou rattacher a un case par SIRET
   - Option A : dans `sync_mongodb` du DAG Airflow
   - Option B : endpoint backend appele apres le pipeline
-- [ ] **Pagination** sur GET `/api/documents` — Ajouter `?limit=&offset=&status=&type=`
-- [ ] **Supprimer code mort** : `backend/model/models.py` (typo "Documment"), `backend/utils/formatters.py`, `backend/utils/extractorMetaData.py`
+- [x] **Pagination** sur GET `/api/documents` — Ajouter `?limit=&offset=&status=&type=`
+- [x] **Supprimer code mort** : `backend/model/models.py` (typo "Documment"), `backend/utils/formatters.py`, `backend/utils/extractorMetaData.py`
 
 ### P2 — Nice to have (DONE)
 
-- [ ] Deplacer JWT_SECRET et credentials Airflow (`admin:admin`) en variables d'environnement
-- [ ] Utiliser les modeles Pydantic dans les reponses de route (au lieu de dicts manuels)
-- [ ] Endpoint `/api/documents/{id}/metrics` pour evaluer la qualite OCR (utiliser `services/ocr_metrics.py`)
+- [x] Deplacer JWT_SECRET et credentials Airflow (`admin:admin`) en variables d'environnement
+- [x] Utiliser les modeles Pydantic dans les reponses de route (au lieu de dicts manuels)
+- [x] Endpoint `/api/documents/{id}/metrics` pour evaluer la qualite OCR (utiliser `services/ocr_metrics.py`)
 
 ---
 
