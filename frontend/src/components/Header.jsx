@@ -13,10 +13,10 @@ export const Header = () => {
       <div className="mx-auto flex h-20 w-full max-w-7xl items-center justify-between px-6">
         <Link to="/" className="flex items-center gap-3">
           <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-900 text-sm font-bold text-white shadow-sm">
-            DF
+            DS
           </div>
           <div>
-            <p className="text-lg font-bold text-slate-900">DocuFlow AI</p>
+            <p className="text-lg font-bold text-slate-900">DocuScan AI</p>
             <p className="text-xs text-slate-500">CRM & conformité documentaire</p>
           </div>
         </Link>
@@ -27,12 +27,6 @@ export const Header = () => {
           </NavLink>
           <NavLink to="/crm" className={navClass}>
             CRM
-          </NavLink>
-          <NavLink to="/crm/1" className={navClass}>
-            Dossiers
-          </NavLink>
-          <NavLink to="/compliance/1" className={navClass}>
-            Conformité
           </NavLink>
         </nav>
       </div>

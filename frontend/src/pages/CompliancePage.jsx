@@ -4,13 +4,14 @@ import { Layout } from "../components/Layout";
 import { StatCard } from "../components/StatCard";
 import { SectionCard } from "../components/SectionCard";
 import { StatusBadge } from "../components/StatusBadge";
+import { ErrorAlert } from "../components/ErrorAlert";
 import {
   globalChecks as fallbackGlobalChecks,
   requiredDocuments as fallbackRequiredDocuments,
   complianceAnomalies as fallbackComplianceAnomalies,
   decisionHistory as fallbackDecisionHistory,
 } from "../data/mockCompliance";
-import { getComplianceByCaseId } from "../api/compliance";
+import { getComplianceById } from "../api/compliance";
 
 const getCheckVariant = (passed) => (passed ? "success" : "danger");
 
@@ -43,38 +44,45 @@ const normalizeCompliance = (data) => {
       : Array.isArray(data?.checks)
       ? data.checks
       : fallbackGlobalChecks,
+
     requiredDocuments: Array.isArray(data?.requiredDocuments)
       ? data.requiredDocuments
       : Array.isArray(data?.documents)
       ? data.documents
       : fallbackRequiredDocuments,
-    anomalies: Array.isArray(data?.anomalies)
+
+    anomalies: Array.isArray(data?.complianceAnomalies)
+      ? data.complianceAnomalies
+      : Array.isArray(data?.anomalies)
       ? data.anomalies
       : fallbackComplianceAnomalies,
+
     decisionHistory: Array.isArray(data?.decisionHistory)
       ? data.decisionHistory
       : Array.isArray(data?.history)
       ? data.history
       : fallbackDecisionHistory,
+
     dossierName: data?.companyName || data?.company_name || "Société Alpha",
     updatedAt: data?.updatedAt || data?.updated_at || "Aujourd’hui à 14:02",
     currentStatus: data?.status || "À revoir",
   };
 };
 
+const fallbackComplianceData = {
+  globalChecks: fallbackGlobalChecks,
+  requiredDocuments: fallbackRequiredDocuments,
+  anomalies: fallbackComplianceAnomalies,
+  decisionHistory: fallbackDecisionHistory,
+  dossierName: "Société Alpha",
+  updatedAt: "Aujourd’hui à 14:02",
+  currentStatus: "À revoir",
+};
+
 export const CompliancePage = () => {
   const { caseId } = useParams();
 
-  const [complianceData, setComplianceData] = useState({
-    globalChecks: fallbackGlobalChecks,
-    requiredDocuments: fallbackRequiredDocuments,
-    anomalies: fallbackComplianceAnomalies,
-    decisionHistory: fallbackDecisionHistory,
-    dossierName: "Société Alpha",
-    updatedAt: "Aujourd’hui à 14:02",
-    currentStatus: "À revoir",
-  });
-
+  const [complianceData, setComplianceData] = useState(fallbackComplianceData);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -84,33 +92,19 @@ export const CompliancePage = () => {
         setLoading(true);
         setError("");
 
-        const data = await getComplianceByCaseId(caseId);
+        const data = await getComplianceById(caseId);
 
         if (data && typeof data === "object") {
           setComplianceData(normalizeCompliance(data));
         } else {
-          setComplianceData({
-            globalChecks: fallbackGlobalChecks,
-            requiredDocuments: fallbackRequiredDocuments,
-            anomalies: fallbackComplianceAnomalies,
-            decisionHistory: fallbackDecisionHistory,
-            dossierName: "Société Alpha",
-            updatedAt: "Aujourd’hui à 14:02",
-            currentStatus: "À revoir",
-          });
+          setComplianceData(fallbackComplianceData);
         }
       } catch (err) {
         console.error("Erreur chargement conformité:", err);
-        setError("API indisponible, affichage des données de démonstration.");
-        setComplianceData({
-          globalChecks: fallbackGlobalChecks,
-          requiredDocuments: fallbackRequiredDocuments,
-          anomalies: fallbackComplianceAnomalies,
-          decisionHistory: fallbackDecisionHistory,
-          dossierName: "Société Alpha",
-          updatedAt: "Aujourd’hui à 14:02",
-          currentStatus: "À revoir",
-        });
+        setError(
+          "Impossible de charger la conformité depuis l’API. Affichage des données de démonstration.",
+        );
+        setComplianceData(fallbackComplianceData);
       } finally {
         setLoading(false);
       }
@@ -132,11 +126,7 @@ export const CompliancePage = () => {
       subtitle="Vérifie les pièces obligatoires, analyse les incohérences et prends une décision finale sur la conformité du dossier."
     >
       <div className="space-y-8">
-        {error && (
-          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            {error}
-          </div>
-        )}
+        {error && <ErrorAlert message={error} />}
 
         {loading ? (
           <SectionCard title="Chargement">
@@ -238,7 +228,7 @@ export const CompliancePage = () => {
                     Marquer à revoir
                   </button>
                   <Link
-                    to="/crm/1"
+                    to="/crm"
                     className="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 hover:bg-slate-50"
                   >
                     Retour au dossier

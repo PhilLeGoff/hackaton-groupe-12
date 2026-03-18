@@ -4,6 +4,7 @@ import { Layout } from "../components/Layout";
 import { StatCard } from "../components/StatCard";
 import { SectionCard } from "../components/SectionCard";
 import { StatusBadge } from "../components/StatusBadge";
+import { ErrorAlert } from "../components/ErrorAlert";
 import {
   extractedFields as fallbackExtractedFields,
   documentAnomalies as fallbackDocumentAnomalies,
@@ -11,33 +12,64 @@ import {
 } from "../data/mockDocuments";
 import { getDocumentById } from "../api/documents";
 
+const fallbackDocumentData = {
+  type: "Facture",
+  companyName: "Société Alpha",
+  fileName: "facture_alpha.pdf",
+  confidence: "94%",
+  status: "À revoir",
+  updatedAt: "Aujourd’hui à 14:00",
+};
+
 const normalizeDocument = (item) => ({
   id: item.id || item._id || "N/A",
   type: item.type || item.documentType || item.document_type || "Document",
   companyName:
     item.companyName || item.company_name || item.name || "Entreprise inconnue",
   fileName: item.fileName || item.filename || item.name || "document.pdf",
-  confidence: item.confidence || item.confidenceScore || "94%",
+  confidence:
+    item.confidence ||
+    item.confidenceScore ||
+    item.confidence_score ||
+    "94%",
   status: item.status || item.analysisStatus || "À revoir",
   updatedAt: item.updatedAt || item.updated_at || "Aujourd’hui",
 });
 
-const normalizeExtraction = (data) => {
-  if (Array.isArray(data)) return data;
-
-  if (data?.fields && Array.isArray(data.fields)) {
-    return data.fields;
-  }
-
-  if (data && typeof data === "object") {
-    return Object.entries(data).map(([key, value]) => ({
-      label: key,
-      value: String(value),
-      confidence: "90%",
+const normalizeExtractedFields = (data) => {
+  if (Array.isArray(data?.extractedFields)) {
+    return data.extractedFields.map((field) => ({
+      label: field.label || field.name || "Champ",
+      value: field.value ?? "Non renseigné",
+      confidence: field.confidence || "90%",
     }));
   }
 
   return fallbackExtractedFields;
+};
+
+const normalizeAnomalies = (data) => {
+  if (Array.isArray(data?.anomalies)) {
+    return data.anomalies.map((item) => ({
+      title: item.title || item.name || "Anomalie détectée",
+      description: item.description || item.message || "Aucun détail fourni.",
+      level: item.level || "warning",
+    }));
+  }
+
+  return fallbackDocumentAnomalies;
+};
+
+const normalizeTimeline = (data) => {
+  if (Array.isArray(data?.timeline)) {
+    return data.timeline.map((item) => ({
+      step: item.step || item.label || "Étape",
+      status: item.status || "En attente",
+      date: item.date || item.timestamp || "Non renseigné",
+    }));
+  }
+
+  return fallbackTimeline;
 };
 
 const getConfidenceVariant = (confidence) => {
@@ -62,18 +94,10 @@ const getAnomalyClasses = (level) => {
 export const DocumentDetailsPage = () => {
   const { documentId } = useParams();
 
-  const [documentData, setDocumentData] = useState({
-    type: "Facture",
-    companyName: "Société Alpha",
-    fileName: "facture_alpha.pdf",
-    confidence: "94%",
-    status: "À revoir",
-    updatedAt: "Aujourd’hui à 14:00",
-  });
-
+  const [documentData, setDocumentData] = useState(fallbackDocumentData);
   const [fields, setFields] = useState(fallbackExtractedFields);
-  const [anomalies] = useState(fallbackDocumentAnomalies);
-  const [timeline] = useState(fallbackTimeline);
+  const [anomalies, setAnomalies] = useState(fallbackDocumentAnomalies);
+  const [timeline, setTimeline] = useState(fallbackTimeline);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -87,22 +111,24 @@ export const DocumentDetailsPage = () => {
 
         if (documentResponse && typeof documentResponse === "object") {
           setDocumentData(normalizeDocument(documentResponse));
-          if (documentResponse.extractedFields) {
-            setFields(normalizeExtraction(documentResponse.extractedFields));
-          }
+          setFields(normalizeExtractedFields(documentResponse));
+          setAnomalies(normalizeAnomalies(documentResponse));
+          setTimeline(normalizeTimeline(documentResponse));
+        } else {
+          setDocumentData(fallbackDocumentData);
+          setFields(fallbackExtractedFields);
+          setAnomalies(fallbackDocumentAnomalies);
+          setTimeline(fallbackTimeline);
         }
       } catch (err) {
         console.error("Erreur chargement document:", err);
-        setError("API indisponible, affichage des données de démonstration.");
-        setDocumentData({
-          type: "Facture",
-          companyName: "Société Alpha",
-          fileName: "facture_alpha.pdf",
-          confidence: "94%",
-          status: "À revoir",
-          updatedAt: "Aujourd’hui à 14:00",
-        });
+        setError(
+          "Impossible de charger le document depuis l’API. Affichage des données de démonstration.",
+        );
+        setDocumentData(fallbackDocumentData);
         setFields(fallbackExtractedFields);
+        setAnomalies(fallbackDocumentAnomalies);
+        setTimeline(fallbackTimeline);
       } finally {
         setLoading(false);
       }
@@ -117,11 +143,7 @@ export const DocumentDetailsPage = () => {
       subtitle="Visualise le document, consulte les champs extraits par l’IA, repère les anomalies et prépare la validation métier."
     >
       <div className="space-y-8">
-        {error && (
-          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            {error}
-          </div>
-        )}
+        {error && <ErrorAlert message={error} />}
 
         {loading ? (
           <SectionCard title="Chargement">
@@ -168,7 +190,7 @@ export const DocumentDetailsPage = () => {
                       Télécharger
                     </button>
                     <Link
-                      to="/crm/1"
+                      to="/crm"
                       className="rounded-2xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800"
                     >
                       Retour dossier
@@ -299,7 +321,9 @@ export const DocumentDetailsPage = () => {
             <SectionCard
               title="Anomalies détectées"
               subtitle="Points d’attention à vérifier avant validation définitive."
-              rightElement={<StatusBadge label={`${anomalies.length} alertes`} variant="warning" />}
+              rightElement={
+                <StatusBadge label={`${anomalies.length} alertes`} variant="warning" />
+              }
             >
               <div className="grid gap-4 lg:grid-cols-3">
                 {anomalies.map((item, index) => (
