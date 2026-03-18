@@ -5,7 +5,6 @@ from routes.uploadsRoute import _router as uploadRouter
 from routes.documents import _router as documentRouter
 from routes.cases import _router as caseRouter
 from routes.compliances import _router as complianceRouter
-from config.database import connect_to_mongo, close_mongo_connection
 
 app = FastAPI(
     title="DocuScan AI API",

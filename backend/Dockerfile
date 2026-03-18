@@ -11,10 +11,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Dossier de travail dans le container
 WORKDIR /app
 
+
+
+RUN python -m pip install --upgrade pip
+
 # Copie des dépendances d'abord (pour profiter du cache Docker)
 COPY requirement.txt .
 
-RUN python -m pip install --upgrade pip
 
 # Installation des dépendances
 RUN pip install --no-cache-dir -r requirement.txt
