@@ -57,8 +57,13 @@ async def get_case(case_id: str):
 async def create_case(payload: CaseCreate):
     case = payload.model_dump()
     case["status"] = "pending"
-
-    result = case_collection.insert_one(case)
+    try:
+        # comment: 
+        result = case_collection.insert_one(case)
+    except Exception as e:
+        raise HTTPException(detail="erreur de se connecter à la db",status_code=500)
+    # end try
+    
     case["_id"] = str(result.inserted_id)
 
     return case
@@ -72,11 +77,15 @@ async def update_case(case_id: str, payload: CaseUpdate):
         raise HTTPException(status_code=400, detail="Invalid case ID")
 
     update_data = {k: v for k, v in payload.model_dump().items() if v is not None}
-
-    result = case_collection.update_one(
+    try:
+     # comment: 
+     result = case_collection.update_one(
         {"_id": object_id},
         {"$set": update_data}
-    )
+        )
+    except Exception as e:
+        raise HTTPException(detail="erreur de se connecter à la db",status_code=500)
+
 
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Case not found")
