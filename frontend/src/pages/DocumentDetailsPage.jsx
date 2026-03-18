@@ -5,21 +5,17 @@ import { StatCard } from "../components/StatCard";
 import { SectionCard } from "../components/SectionCard";
 import { StatusBadge } from "../components/StatusBadge";
 import { ErrorAlert } from "../components/ErrorAlert";
-import {
-  extractedFields as fallbackExtractedFields,
-  documentAnomalies as fallbackDocumentAnomalies,
-  timeline as fallbackTimeline,
-} from "../data/mockDocuments";
 import { getDocumentById, updateDocument, downloadDocument } from "../api/documents";
 import { api } from "../api/axios";
+import { normalizeStatus, getStatusVariant } from "../utils/statusUtils";
 
 const fallbackDocumentData = {
   type: "Facture",
-  companyName: "Société Alpha",
-  fileName: "facture_alpha.pdf",
-  confidence: "94%",
+  companyName: "Non renseigné",
+  fileName: "document.pdf",
+  confidence: "N/A",
   status: "À revoir",
-  updatedAt: "Aujourd'hui à 14:00",
+  updatedAt: "Aujourd'hui",
   caseId: null,
 };
 
@@ -31,57 +27,196 @@ const getFileType = (filename) => {
   return "other";
 };
 
-const normalizeDocument = (item) => ({
-  id: item.id || item._id || "N/A",
-  type: item.type || item.documentType || item.document_type || "Document",
-  companyName:
-    item.companyName || item.company_name || item.name || "Entreprise inconnue",
-  fileName: item.fileName || item.filename || item.name || "document.pdf",
-  confidence:
-    item.confidence ||
-    item.confidenceScore ||
-    item.confidence_score ||
-    "N/A",
-  status: item.status || item.analysisStatus || "À revoir",
-  updatedAt: item.updatedAt || item.updated_at || "Aujourd'hui",
-  caseId: item.caseId || item.case_id || null,
-});
+const normalizeDocument = (item) => {
+  // Extract company name from entities if available
+  const entities = item.entities || {};
+  const companyName = item.companyName || item.company_name
+    || entities.company_name || entities.denomination
+    || null;
+
+  return {
+    id: item.id || item._id || "N/A",
+    type: item.type || item.documentType || item.document_type || "Document",
+    companyName: companyName || "Non renseigné",
+    fileName: item.fileName || item.filename || item.name || "document.pdf",
+    confidence:
+      item.confidence ||
+      item.confidenceScore ||
+      item.confidence_score ||
+      "N/A",
+    status: normalizeStatus(item.status),
+    updatedAt: item.updatedAt || item.updated_at || "Aujourd'hui",
+    caseId: item.caseId || item.case_id || null,
+  };
+};
+
+const FIELD_LABELS = {
+  siret: "SIRET",
+  vat: "TVA",
+  amount_ht: "Montant HT",
+  amount_ttc: "Montant TTC",
+  issue_date: "Date d'émission",
+  expiration_date: "Date d'expiration",
+  company_name: "Raison sociale",
+  iban: "IBAN",
+  denomination: "Dénomination",
+  forme_juridique: "Forme juridique",
+  rcs: "RCS",
+  greffe: "Greffe",
+  dirigeant: "Dirigeant",
+  capital: "Capital",
+  siren: "SIREN",
+  supplier_siret: "SIRET fournisseur",
+  customer_siret: "SIRET client",
+  supplier_vat_number: "TVA fournisseur",
+  total_ht: "Total HT",
+  total_ttc: "Total TTC",
+  total_tva: "TVA montant",
+  valid_until: "Valide jusqu'au",
+  attestation_number: "N° attestation",
+  bic: "BIC",
+  bank_name: "Banque",
+  account_holder: "Titulaire",
+};
+
+// Detect obviously garbage NER values (e.g. OCR text fragments misidentified as SIRET/IBAN)
+const isGarbageValue = (key, value) => {
+  if (!value || typeof value !== "string") return false;
+  const v = value.trim();
+  // Numeric fields: SIRET, SIREN, IBAN, BIC, amounts — should contain mostly digits or known format
+  const numericFields = ["siret", "supplier_siret", "customer_siret", "siren", "iban", "bic",
+    "amount_ht", "amount_ttc", "total_ht", "total_ttc", "total_tva", "capital"];
+  if (numericFields.includes(key)) {
+    const digitRatio = (v.replace(/[^0-9]/g, "").length) / v.length;
+    if (v.length > 50 || digitRatio < 0.3) return true;
+  }
+  // Any field with a very long value without spaces is likely OCR noise
+  if (v.length > 80 && !v.includes(" ")) return true;
+  return false;
+};
 
 const normalizeExtractedFields = (data) => {
-  if (Array.isArray(data?.extractedFields)) {
+  // Try extractedFields first
+  if (Array.isArray(data?.extractedFields) && data.extractedFields.length > 0) {
     return data.extractedFields.map((field) => ({
       label: field.label || field.name || "Champ",
       value: field.value ?? "Non renseigné",
-      confidence: field.confidence || "90%",
+      confidence: field.confidence || "—",
     }));
   }
-  return fallbackExtractedFields;
+
+  // Fall back to entities if available
+  const entities = data?.entities;
+  if (entities && typeof entities === "object") {
+    const details = entities.details || entities;
+    const fields = [];
+    for (const [key, value] of Object.entries(details)) {
+      if (key === "details" || !value || value === "None") continue;
+      const strVal = String(value);
+      // Skip garbage values from bad OCR/NER
+      if (isGarbageValue(key, strVal)) continue;
+      fields.push({
+        label: FIELD_LABELS[key] || key,
+        value: strVal,
+        confidence: "—",
+      });
+    }
+    if (fields.length > 0) return fields;
+  }
+
+  return [];
+};
+
+const ANOMALY_FIELD_LABELS = {
+  missing_fields: "Champs manquants",
+  siret: "SIRET",
+  supplier_siret: "SIRET fournisseur",
+  customer_siret: "SIRET client",
+  vat_number: "N° TVA",
+  supplier_vat_number: "TVA fournisseur",
+  iban: "IBAN",
+  amounts: "Montants",
+  due_date: "Date d'échéance",
+  issue_date: "Date d'émission",
+  valid_until: "Date de validité",
+  expiry_date: "Date d'expiration",
+  siret_cross: "Cohérence SIRET",
+  urssaf_expiry: "Expiration URSSAF",
+  vat_cross: "Cohérence TVA",
+};
+
+// Clean up anomaly messages — remove raw garbage values in parentheses
+const cleanAnomalyMessage = (message) => {
+  if (!message) return "Aucun détail fourni.";
+  // If the parenthetical content is very long (garbage), simplify
+  return message.replace(/\(([^)]{40,})\)/g, "(valeur invalide)");
 };
 
 const normalizeAnomalies = (data) => {
-  if (Array.isArray(data?.anomalies)) {
-    return data.anomalies.map((item) => ({
-      title: item.title || item.name || item.field || "Anomalie détectée",
-      description: item.description || item.message || "Aucun détail fourni.",
-      level: item.level || "warning",
-    }));
+  const mapAnomaly = (item) => ({
+    title: ANOMALY_FIELD_LABELS[item.field] || item.title || item.name || item.field || "Anomalie détectée",
+    description: cleanAnomalyMessage(item.description || item.message),
+    level: item.level || "warning",
+  });
+
+  if (Array.isArray(data?.anomalies) && data.anomalies.length > 0) {
+    return data.anomalies.map(mapAnomaly);
   }
-  return fallbackDocumentAnomalies;
+  // Try validation.anomalies
+  const val = data?.validation;
+  if (val && Array.isArray(val.anomalies) && val.anomalies.length > 0) {
+    return val.anomalies.map(mapAnomaly);
+  }
+  return [];
+};
+
+const formatDate = (raw) => {
+  if (!raw || raw === "Non renseigné") return "—";
+  try {
+    const d = new Date(raw);
+    if (isNaN(d.getTime())) return raw;
+    return d.toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  } catch {
+    return raw;
+  }
+};
+
+const normalizeTimelineStatus = (status) => {
+  if (!status) return "En attente";
+  switch (status.toLowerCase().replace(/[_ ]/g, "")) {
+    case "completed":
+    case "terminé":
+    case "termine":
+      return "Terminé";
+    case "averifier":
+    case "àvérifier":
+    case "toreview":
+      return "À vérifier";
+    case "processing":
+    case "encours":
+      return "En cours";
+    case "error":
+    case "erreur":
+      return "Erreur";
+    default:
+      return status;
+  }
 };
 
 const normalizeTimeline = (data) => {
-  if (Array.isArray(data?.timeline)) {
+  if (Array.isArray(data?.timeline) && data.timeline.length > 0) {
     return data.timeline.map((item) => ({
       step: item.step || item.action || item.label || "Étape",
-      status: item.status || "En attente",
-      date: item.date || item.timestamp || "Non renseigné",
+      status: normalizeTimelineStatus(item.status),
+      date: formatDate(item.date || item.timestamp),
     }));
   }
-  return fallbackTimeline;
+  return [];
 };
 
 const getConfidenceVariant = (confidence) => {
   const value = parseInt(confidence, 10);
+  if (isNaN(value)) return "default";
   if (value >= 95) return "success";
   if (value >= 85) return "warning";
   return "danger";
@@ -102,9 +237,9 @@ export const DocumentDetailsPage = () => {
   const { documentId } = useParams();
 
   const [documentData, setDocumentData] = useState(fallbackDocumentData);
-  const [fields, setFields] = useState(fallbackExtractedFields);
-  const [anomalies, setAnomalies] = useState(fallbackDocumentAnomalies);
-  const [timeline, setTimeline] = useState(fallbackTimeline);
+  const [fields, setFields] = useState([]);
+  const [anomalies, setAnomalies] = useState([]);
+  const [timeline, setTimeline] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [actionLoading, setActionLoading] = useState("");
@@ -133,9 +268,9 @@ export const DocumentDetailsPage = () => {
           }
         } else {
           setDocumentData(fallbackDocumentData);
-          setFields(fallbackExtractedFields);
-          setAnomalies(fallbackDocumentAnomalies);
-          setTimeline(fallbackTimeline);
+          setFields([]);
+          setAnomalies([]);
+          setTimeline([]);
         }
       } catch (err) {
         console.error("Erreur chargement document:", err);
@@ -237,7 +372,7 @@ export const DocumentDetailsPage = () => {
               />
               <StatCard
                 title="Confiance globale"
-                value={documentData.confidence}
+                value={documentData.confidence !== "N/A" ? `${documentData.confidence}%` : "N/A"}
                 subtitle="Qualité moyenne d'extraction"
               />
               <StatCard
@@ -374,43 +509,54 @@ export const DocumentDetailsPage = () => {
                     onClick={handleExportJSON}
                     className="rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
                   >
-                    Export JSON
+                    Exporter JSON
                   </button>
                 }
                 className="xl:col-span-2"
               >
-                <div className="space-y-4">
-                  {fields.map((field, index) => (
-                    <div
-                      key={`${field.label}-${index}`}
-                      className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 md:flex-row md:items-center md:justify-between"
-                    >
-                      <div className="flex-1">
-                        <p className="text-sm text-slate-500">{field.label}</p>
-                        {editMode ? (
-                          <input
-                            type="text"
-                            value={field.value}
-                            onChange={(e) => {
-                              const updated = [...fields];
-                              updated[index] = { ...updated[index], value: e.target.value };
-                              setFields(updated);
-                            }}
-                            className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-base font-semibold text-slate-900 focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                {fields.length === 0 ? (
+                  <div className="py-8 text-center text-slate-500">
+                    <p className="text-sm font-medium">Aucun champ valide extrait</p>
+                    <p className="mt-1 text-xs text-slate-400">
+                      L'IA n'a pas pu identifier de données exploitables dans ce document. Vérifiez qu'il s'agit bien d'un document administratif (facture, KBIS, attestation, etc.).
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {fields.map((field, index) => (
+                      <div
+                        key={`${field.label}-${index}`}
+                        className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 md:flex-row md:items-center md:justify-between"
+                      >
+                        <div className="flex-1">
+                          <p className="text-sm text-slate-500">{field.label}</p>
+                          {editMode ? (
+                            <input
+                              type="text"
+                              value={field.value}
+                              onChange={(e) => {
+                                const updated = [...fields];
+                                updated[index] = { ...updated[index], value: e.target.value };
+                                setFields(updated);
+                              }}
+                              className="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-base font-semibold text-slate-900 focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                            />
+                          ) : (
+                            <p className="mt-1 text-base font-semibold text-slate-900">
+                              {field.value}
+                            </p>
+                          )}
+                        </div>
+                        {field.confidence && field.confidence !== "—" && (
+                          <StatusBadge
+                            label={`Confiance ${field.confidence}%`}
+                            variant={getConfidenceVariant(field.confidence)}
                           />
-                        ) : (
-                          <p className="mt-1 text-base font-semibold text-slate-900">
-                            {field.value}
-                          </p>
                         )}
                       </div>
-                      <StatusBadge
-                        label={`Confiance ${field.confidence || "90%"}`}
-                        variant={getConfidenceVariant(field.confidence || "90%")}
-                      />
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </SectionCard>
 
               <SectionCard
@@ -423,9 +569,11 @@ export const DocumentDetailsPage = () => {
                       <div className="flex flex-col items-center">
                         <div
                           className={`h-3.5 w-3.5 rounded-full ${
-                            item.status === "completed" || item.status === "Terminé"
+                            item.status === "Terminé"
                               ? "bg-emerald-500"
-                              : "bg-amber-500"
+                              : item.status === "Erreur"
+                                ? "bg-red-500"
+                                : "bg-amber-500"
                           }`}
                         />
                         {index < timeline.length - 1 && (
