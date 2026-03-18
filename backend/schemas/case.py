@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional, List
+from typing import Optional, List, Any
 
 class CaseCreate(BaseModel):
     company_name: str = Field(..., example="Total Energies")
@@ -35,3 +35,27 @@ class CaseDetailResponse(BaseModel):
 
 class CaseListResponse(BaseModel):
     data: List[CaseResponse]
+    
+class DocumentAutofill(BaseModel):
+    type: Optional[str]
+    date: Optional[str]
+    amounts: Optional[dict] = {}
+    status: Optional[str]
+    anomalies: List[Any] = []
+
+class ComplianceAutofill(BaseModel):
+    urssaf_valid: bool = False
+    urssaf_expiry: Optional[str]
+    kbis_present: bool = False
+    rib_present: bool = False
+    iban: Optional[str]
+    all_sirets_match: bool = False
+    anomalies: List[Any] = []
+
+class CaseAutofillResponse(BaseModel):
+    company_name: Optional[str]
+    siret: Optional[str]
+    vat: Optional[str]
+    address: Optional[str]
+    documents: List[DocumentAutofill] = []
+    compliance: ComplianceAutofill = ComplianceAutofill()
