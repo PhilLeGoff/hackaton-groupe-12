@@ -112,9 +112,52 @@ def _run_tesseract(input_path: Path) -> str:
     return result.stdout
 
 
+def _is_spaced_line(line: str) -> bool:
+    """Check if a line has the spaced-letter pattern (e.g. 'F A C T U R E')."""
+    tokens = line.split()
+    if len(tokens) < 4:
+        return False
+    single_char_count = sum(1 for t in tokens if len(t) == 1)
+    return (single_char_count / len(tokens)) > 0.6
+
+
+def _fix_spaced_line_raw(raw_line: str) -> str:
+    """Fix a spaced-letter line using original spacing to detect word boundaries.
+
+    In the raw PDF text, word boundaries have wider gaps (2+ spaces) than
+    letter spacing (1 space). E.g.:
+      'F a c t u r e   n °   1 2 3 4 5' → 'Facture n° 12345'
+    """
+    # Split on gaps of 2+ spaces → word groups
+    groups = re.split(r' {2,}', raw_line.strip())
+    words = []
+    for group in groups:
+        group = group.strip()
+        if not group:
+            continue
+        tokens = group.split(' ')
+        single_chars = sum(1 for t in tokens if len(t) == 1)
+        if len(tokens) >= 2 and single_chars / len(tokens) > 0.6:
+            # Join single chars within this word group
+            words.append("".join(tokens))
+        else:
+            words.append(group)
+    return " ".join(words)
+
+
 def _normalize_whitespace(text: str) -> str:
-    normalized_lines = [re.sub(r"[ \t]+", " ", line).strip() for line in text.splitlines()]
-    return "\n".join(line for line in normalized_lines if line)
+    result_lines = []
+    for line in text.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        # Check for spaced-letter pattern BEFORE collapsing spaces
+        normalized = re.sub(r"[ \t]+", " ", stripped).strip()
+        if _is_spaced_line(normalized):
+            result_lines.append(_fix_spaced_line_raw(stripped))
+        else:
+            result_lines.append(normalized)
+    return "\n".join(result_lines)
 
 
 def _guess_suffix(content_type: str) -> str:

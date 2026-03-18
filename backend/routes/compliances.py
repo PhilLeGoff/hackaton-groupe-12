@@ -1,8 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from bson import ObjectId
-from config.database import compliance_collection
-from bson import ObjectId
 from bson.errors import InvalidId
+from config.database import compliance_collection
 from schemas.compliance import ComplianceCreate, ComplianceUpdate, ComplianceResponse, ComplianceListResponse
 
 _router = APIRouter(prefix="/api/compliances", tags=["compliances"])
@@ -19,12 +18,17 @@ async def get_compliances():
             "complianceAnomalies": comp.get("anomalies", []),
             "decisionHistory": comp.get("decision_history", []),
         })
-    return compliances
+    return {"data": compliances}
 
 # Get compliance by ID
 @_router.get("/{compliance_id}", response_model=ComplianceResponse)
 async def get_compliance(compliance_id: str):
-    comp = await compliance_collection.find_one({"_id": ObjectId(compliance_id)})
+    try:
+        oid = ObjectId(compliance_id)
+    except InvalidId:
+        raise HTTPException(status_code=400, detail="Invalid compliance ID")
+
+    comp = await compliance_collection.find_one({"_id": oid})
     if not comp:
         raise HTTPException(status_code=404, detail="Compliance not found")
 
@@ -36,6 +40,26 @@ async def get_compliance(compliance_id: str):
         "decisionHistory": comp.get("decision_history", [])
     }
   
+# Get compliance by case ID
+@_router.get("/case/{case_id}", response_model=ComplianceResponse)
+async def get_compliance_by_case(case_id: str):
+    try:
+        oid = ObjectId(case_id)
+    except InvalidId:
+        raise HTTPException(status_code=400, detail="Invalid case ID")
+
+    comp = await compliance_collection.find_one({"case_id": oid})
+    if not comp:
+        raise HTTPException(status_code=404, detail="No compliance found for this case")
+
+    return {
+        "id": str(comp["_id"]),
+        "globalChecks": comp.get("global_checks", []),
+        "requiredDocuments": comp.get("required_documents", []),
+        "complianceAnomalies": comp.get("anomalies", []),
+        "decisionHistory": comp.get("decision_history", [])
+    }
+
 # Create compliance
 @_router.post("")
 async def create_compliance(payload: ComplianceCreate):
@@ -51,7 +75,7 @@ async def create_compliance(payload: ComplianceCreate):
         "notes": payload.notes
     }
 
-    result = compliance_collection.insert_one(compliance)
+    result = await compliance_collection.insert_one(compliance)
     compliance["_id"] = str(result.inserted_id)
     compliance["case_id"] = str(case_id)
 
@@ -66,7 +90,7 @@ async def update_compliance(compliance_id: str, payload: ComplianceUpdate):
     except InvalidId:
         raise HTTPException(status_code=400, detail="Invalid compliance ID")
 
-    result = compliance_collection.update_one(
+    result = await compliance_collection.update_one(
         {"_id": object_id},
         {"$set": {
             "decision": payload.decision,

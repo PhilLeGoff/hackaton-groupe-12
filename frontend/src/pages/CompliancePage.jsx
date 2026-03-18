@@ -5,13 +5,11 @@ import { StatCard } from "../components/StatCard";
 import { SectionCard } from "../components/SectionCard";
 import { StatusBadge } from "../components/StatusBadge";
 import { ErrorAlert } from "../components/ErrorAlert";
-import {
-  globalChecks as fallbackGlobalChecks,
-  requiredDocuments as fallbackRequiredDocuments,
-  complianceAnomalies as fallbackComplianceAnomalies,
-  decisionHistory as fallbackDecisionHistory,
-} from "../data/mockCompliance";
-import { getComplianceById, updateCompliance } from "../api/compliance";
+const fallbackGlobalChecks = [];
+const fallbackRequiredDocuments = [];
+const fallbackComplianceAnomalies = [];
+const fallbackDecisionHistory = [];
+import { getComplianceByCaseId, updateCompliance } from "../api/compliance";
 import { getAutofill } from "../api/cases";
 
 const getCheckVariant = (passed) => (passed ? "success" : "danger");
@@ -96,7 +94,7 @@ export const CompliancePage = () => {
         setError("");
 
         const [complianceResult, autofillResult] = await Promise.allSettled([
-          getComplianceById(caseId),
+          getComplianceByCaseId(caseId),
           getAutofill(caseId),
         ]);
 

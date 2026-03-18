@@ -21,7 +21,7 @@ ALLOWED_MIME_TYPES = {
     "text/plain",
 }
 
-MAX_FILE_SIZE = 2 * 1024 * 1024
+MAX_FILE_SIZE = 20 * 1024 * 1024
 MAX_FILES = 3
 HDFS_USER = "root"
 

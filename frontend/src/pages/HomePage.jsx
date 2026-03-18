@@ -58,6 +58,38 @@ export const HomePage = () => {
                 Accéder au module →
               </Link>
             </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+              <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-600 text-white">
+                2
+              </div>
+              <h3 className="text-lg font-semibold text-slate-900">Dépôt de documents</h3>
+              <p className="mt-2 text-sm leading-6 text-slate-600">
+                Déposez vos fichiers (PDF, images, DOCX) pour lancer l’extraction IA automatique.
+              </p>
+              <Link
+                to="/upload"
+                className="mt-4 inline-flex text-sm font-semibold text-slate-900 hover:text-slate-700"
+              >
+                Déposer un document →
+              </Link>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
+              <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white">
+                3
+              </div>
+              <h3 className="text-lg font-semibold text-slate-900">Suivi du pipeline</h3>
+              <p className="mt-2 text-sm leading-6 text-slate-600">
+                Suivi en temps réel du traitement des documents : OCR, NER, classification, validation.
+              </p>
+              <Link
+                to="/dashboard"
+                className="mt-4 inline-flex text-sm font-semibold text-slate-900 hover:text-slate-700"
+              >
+                Voir le suivi →
+              </Link>
+            </div>
           </div>
         </div>
       </section>

@@ -51,6 +51,8 @@ FIELD_DEFINITIONS = {
         "patterns": [
             r"Numero de facture\s*[:\-]\s*([A-Z0-9\-\/]+)",
             r"Facture\s*(?:n[°o]\s*)?[:\-]\s*([A-Z0-9\-\/]+)",
+            r"Facture\s+n[°o]\s*([A-Z0-9\-\/]+)",
+            r"FACTURE\s+N[°O]?\s*([A-Z0-9\-\/]+)",
         ],
     },
     "quote_number": {
@@ -71,7 +73,10 @@ FIELD_DEFINITIONS = {
         "patterns": [
             r"Date d[''\u2019]emission\s*[:\-]\s*(\d{4}-\d{2}-\d{2})",
             r"Date d[''\u2019]emission\s*[:\-]\s*(\d{2}[/\-]\d{2}[/\-]\d{4})",
+            r"Date d[''\u2019]emission\s*[:\-]\s*(\d{2}[/\-]\d{2}[/\-]\d{2})",
             r"Date d[''\u2019]emission\s*[:\-]\s*(\d{1,2}\s+\w+\s+\d{4})",
+            r"Date\s*[:\-]\s*(\d{2}[/\-]\d{2}[/\-]\d{4})",
+            r"Date\s*[:\-]\s*(\d{2}[/\-]\d{2}[/\-]\d{2})",
         ],
     },
     "due_date": {
@@ -106,11 +111,17 @@ FIELD_DEFINITIONS = {
             r"Titulaire du compte\s*[:\-]\s*([^\n]+)",
             r"Entreprise\s*[:\-]\s*([^\n]+)",
             r"FOURNISSEUR\s+([^\n]+)",
+            r"[Pp]aiement\s+[àa]\s+l[''\u2019 ]?ordre\s+de\s+([^\n]+)",
         ],
     },
     "client_name": {
         "label": "Client",
-        "patterns": [r"CLIENT\s+([^\n]+)", r"Client\s*[:\-]\s*([^\n]+)"],
+        "patterns": [
+            r"CLIENT\s*[:\-]\s*([^\n]+)",
+            r"([A-ZÀ-Ÿ][A-ZÀ-Ÿ ]+)\s+[ÀA]\s+L[''\u2019]?ATTENTION\s+DE",
+            r"([A-ZÀ-Ÿ][A-ZÀ-Ÿ ]+)\s+[ÀA]\s+L?ATTENTION\s+DE",
+            r"[ÀA]\s+[Ll][''\u2019]?attention\s+de\s*[:\-]?\s*([^\n]+)",
+        ],
     },
     "siret": {
         "label": "SIRET",
@@ -142,15 +153,28 @@ FIELD_DEFINITIONS = {
     },
     "total_ht": {
         "label": "Montant HT",
-        "patterns": [r"(?:TOTAL HT|Montant HT)\s*[:\-]?\s*([0-9 ]+,[0-9]{2})\s*EUR"],
+        "patterns": [
+            r"(?:TOTAL HT|Montant HT)\s*[:\-]?\s*([0-9 ]+[.,][0-9]{2})\s*(?:EUR|€)",
+            r"(?:TOTAL HT|Montant HT)\s*[:\-]?\s*([0-9 ]+)\s*(?:EUR|€)",
+            r"[Ss]ous\s*-?\s*[Tt]otal\s*[:\-]?\s*([0-9 ]+[.,][0-9]{2})\s*(?:EUR|€)",
+            r"[Ss]ous\s*-?\s*[Tt]otal\s*[:\-]?\s*([0-9 ]+)\s*(?:EUR|€)",
+        ],
     },
     "total_tva": {
         "label": "Montant TVA",
-        "patterns": [r"TVA(?: \([0-9]+(?:,[0-9]+)?%\))?\s*[:\-]?\s*([0-9 ]+,[0-9]{2})\s*EUR"],
+        "patterns": [
+            r"TVA\s*(?:\([0-9]+(?:[.,][0-9]+)?%?\))?\s*[:\-]?\s*([0-9 ]+[.,][0-9]{2})\s*(?:EUR|€)",
+            r"TVA\s*(?:\([0-9]+(?:[.,][0-9]+)?%?\))?\s*[:\-]?\s*([0-9 ]+)\s*(?:EUR|€)",
+        ],
     },
     "total_ttc": {
         "label": "Montant TTC",
-        "patterns": [r"(?:TOTAL TTC|Montant TTC)\s*[:\-]?\s*([0-9 ]+,[0-9]{2})\s*EUR"],
+        "patterns": [
+            r"(?:TOTAL TTC|Montant TTC)\s*[:\-]?\s*([0-9 ]+[.,][0-9]{2})\s*(?:EUR|€)",
+            r"(?:TOTAL TTC|Montant TTC)\s*[:\-]?\s*([0-9 ]+)\s*(?:EUR|€)",
+            r"(?:^|\n)\s*TOTAL\s*[:\-]?\s*([0-9 ]+[.,][0-9]{2})\s*(?:EUR|€)",
+            r"(?:^|\n)\s*TOTAL\s*[:\-]?\s*([0-9 ]+)\s*(?:EUR|€)",
+        ],
     },
     "iban": {
         "label": "IBAN",
@@ -241,12 +265,12 @@ _LABEL_ALIASES = {
     "supplier_siret": ["siret fournisseur"],
     "customer_siret": ["siret client"],
     "siren": ["siren"],
-    "vat_number": ["tva intracommunautaire", "tva"],
+    "vat_number": ["tva intracommunautaire", "numero de tva"],
     "supplier_vat_number": ["tva fournisseur"],
     "customer_vat_number": ["tva client"],
-    "total_ht": ["total ht", "montant ht"],
-    "total_tva": ["tva"],
-    "total_ttc": ["total ttc", "montant ttc"],
+    "total_ht": ["total ht", "montant ht", "sous total", "sous-total", "subtotal"],
+    "total_tva": ["montant tva", "tva montant"],
+    "total_ttc": ["total ttc", "montant ttc", "total"],
     "iban": ["iban"],
     "bic": ["bic"],
     "bank_name": ["banque"],
@@ -320,6 +344,13 @@ def _normalize_date(value: str) -> str:
     m = re.fullmatch(r"(\d{2})[/\-](\d{2})[/\-](\d{4})", value)
     if m:
         return f"{m.group(3)}-{m.group(2)}-{m.group(1)}"
+
+    # DD/MM/YY (2-digit year)
+    m = re.fullmatch(r"(\d{2})[/\-](\d{2})[/\-](\d{2})", value)
+    if m:
+        year = int(m.group(3))
+        year = 2000 + year if year < 50 else 1900 + year
+        return f"{year}-{m.group(2)}-{m.group(1)}"
 
     # "18 mars 2026", "3 janvier 2025"
     m = re.fullmatch(r"(\d{1,2})\s+(\w+)\s+(\d{4})", value)
@@ -422,6 +453,13 @@ def _extract_all_fields(text: str) -> dict:
 # spaCy NER enrichment
 # ---------------------------------------------------------------------------
 
+_SPACY_ORG_BLACKLIST = {
+    "total", "facture", "devis", "attestation", "kbis", "rib",
+    "tva", "urssaf", "siret", "siren", "iban", "bic", "eur",
+    "description", "prix", "quantité", "merci",
+}
+
+
 def _enrich_with_spacy(text: str, entities: dict):
     """Use spaCy NER to fill gaps in regex extraction."""
     nlp = _get_spacy_nlp()
@@ -433,13 +471,22 @@ def _enrich_with_spacy(text: str, entities: dict):
 
     for ent in doc.ents:
         if ent.label_ == "ORG":
+            # Skip common false positives
+            if ent.text.strip().lower() in _SPACY_ORG_BLACKLIST:
+                continue
             # Fill company name if not found by regex
             if not entities.get("supplier_name") and not entities.get("denomination"):
                 entities["supplier_name"] = ent.text
         elif ent.label_ == "PER":
-            # Fill dirigeant if not found
+            # Fill dirigeant if not found — skip false positives
             if not entities.get("dirigeant"):
-                entities["dirigeant"] = ent.text
+                per_text = ent.text.strip()
+                per_lower = per_text.lower()
+                # Reject common false positives and short strings
+                if (per_lower not in _SPACY_ORG_BLACKLIST
+                        and len(per_text) > 3
+                        and not per_lower.startswith(("facture", "montant", "numero", "total"))):
+                    entities["dirigeant"] = per_text
         elif ent.label_ == "LOC":
             # Fill address if not found
             if not entities.get("adresse_siege") and not entities.get("supplier_name"):
