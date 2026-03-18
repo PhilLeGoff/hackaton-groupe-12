@@ -1,11 +1,21 @@
 import { api } from "./axios";
 
-export const getDocumentById = async (id) => {
-  const response = await api.get(`/documents/${id}`);
-  return response.data;
+export const getDocuments = async () => {
+  try {
+    const response = await api.get("/api/documents");
+    return response.data;
+  } catch (error) {
+    console.error("API getDocuments error:", error);
+    throw error;
+  }
 };
 
-export const getDocumentExtraction = async (id) => {
-  const response = await api.get(`/documents/${id}/extraction`);
-  return response.data;
+export const getDocumentById = async (id) => {
+  try {
+    const response = await api.get(`/api/documents/${id}`);
+    return response.data;
+  } catch (error) {
+    console.error("API getDocumentById error:", error);
+    throw error;
+  }
 };
