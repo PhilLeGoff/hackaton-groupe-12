@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from datetime import date
 
 from ia.nlp.ner import FIELD_DEFINITIONS
 from ia.classification.classifier import EXPECTED_FIELDS_BY_TYPE
@@ -25,6 +26,8 @@ def validate(
     _check_amounts_coherence(anomalies, details)
     _check_iban_format(anomalies, details)
     _check_dates(anomalies, details)
+    _check_vat_siret_coherence(anomalies, details)
+    _check_date_logic(anomalies, details)
 
     if collection is not None:
         _check_duplicates(anomalies, document_id, details, collection)
@@ -159,7 +162,7 @@ def _check_iban_format(anomalies: list[dict], details: dict):
 
 def _check_dates(anomalies: list[dict], details: dict):
     """Validate date formats."""
-    for key in ("issue_date", "due_date", "valid_until"):
+    for key in ("issue_date", "due_date", "valid_until", "expiry_date", "date_immatriculation"):
         date_val = details.get(key)
         if not date_val:
             continue
@@ -169,6 +172,80 @@ def _check_dates(anomalies: list[dict], details: dict):
                 "message": f"Format de date invalide ({date_val}), attendu YYYY-MM-DD",
                 "level": "warning",
             })
+
+
+def _check_vat_siret_coherence(anomalies: list[dict], details: dict):
+    """Cross-validate VAT number against SIRET/SIREN (FR + key + SIREN)."""
+    vat = details.get("vat_number") or details.get("supplier_vat_number")
+    siret = details.get("siret") or details.get("supplier_siret")
+    if not vat or not siret:
+        return
+    # French VAT = "FR" + 2-digit key + 9-digit SIREN
+    m = re.fullmatch(r"FR(\d{2})(\d{9})", vat)
+    if not m:
+        return
+    vat_key = int(m.group(1))
+    vat_siren = m.group(2)
+    doc_siren = re.sub(r"\s+", "", siret)[:9]
+    if vat_siren != doc_siren:
+        anomalies.append({
+            "field": "vat_number",
+            "message": f"TVA ({vat}) ne correspond pas au SIREN du SIRET ({doc_siren})",
+            "level": "warning",
+        })
+        return
+    # Check TVA key: key = (12 + 3 * (SIREN % 97)) % 97
+    expected_key = (12 + 3 * (int(vat_siren) % 97)) % 97
+    if vat_key != expected_key:
+        anomalies.append({
+            "field": "vat_number",
+            "message": f"Cle TVA invalide ({vat_key}), attendue {expected_key}",
+            "level": "warning",
+        })
+
+
+def _check_date_logic(anomalies: list[dict], details: dict):
+    """Check logical date constraints: emission < echeance, not in far future."""
+    issue = _parse_date(details.get("issue_date"))
+    due = _parse_date(details.get("due_date"))
+    valid = _parse_date(details.get("valid_until"))
+    expiry = _parse_date(details.get("expiry_date"))
+
+    today = date.today()
+
+    if issue and due and due < issue:
+        anomalies.append({
+            "field": "due_date",
+            "message": f"Date d'echeance ({details['due_date']}) anterieure a l'emission ({details['issue_date']})",
+            "level": "error",
+        })
+
+    if issue and valid and valid < issue:
+        anomalies.append({
+            "field": "valid_until",
+            "message": f"Date de validite ({details['valid_until']}) anterieure a l'emission ({details['issue_date']})",
+            "level": "error",
+        })
+
+    if issue and expiry and expiry < issue:
+        anomalies.append({
+            "field": "expiry_date",
+            "message": f"Date d'expiration ({details['expiry_date']}) anterieure a l'emission ({details['issue_date']})",
+            "level": "error",
+        })
+
+
+def _parse_date(value: str | None) -> date | None:
+    """Parse YYYY-MM-DD string to date object."""
+    if not value:
+        return None
+    m = re.fullmatch(r"(\d{4})-(\d{2})-(\d{2})", value)
+    if not m:
+        return None
+    try:
+        return date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+    except ValueError:
+        return None
 
 
 def _check_duplicates(
