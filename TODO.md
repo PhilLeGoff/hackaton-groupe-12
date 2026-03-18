@@ -43,7 +43,7 @@ Le pipeline est coherent de bout en bout.
 - [ ] **Pagination** sur GET `/api/documents` — Ajouter `?limit=&offset=&status=&type=`
 - [ ] **Supprimer code mort** : `backend/model/models.py` (typo "Documment"), `backend/utils/formatters.py`, `backend/utils/extractorMetaData.py`
 
-### P2 — Nice to have (DONE
+### P2 — Nice to have (DONE)
 
 - [ ] Deplacer JWT_SECRET et credentials Airflow (`admin:admin`) en variables d'environnement
 - [ ] Utiliser les modeles Pydantic dans les reponses de route (au lieu de dicts manuels)
