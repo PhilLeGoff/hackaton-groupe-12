@@ -22,11 +22,17 @@ export const Header = () => {
         </Link>
 
         <nav className="hidden items-center gap-2 md:flex">
-          <NavLink to="/" className={navClass}>
+          <NavLink to="/" className={navClass} end>
             Accueil
           </NavLink>
           <NavLink to="/crm" className={navClass}>
             CRM
+          </NavLink>
+          <NavLink to="/upload" className={navClass}>
+            Upload
+          </NavLink>
+          <NavLink to="/dashboard" className={navClass}>
+            Dashboard
           </NavLink>
         </nav>
       </div>
