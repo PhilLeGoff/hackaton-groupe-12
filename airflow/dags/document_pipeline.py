@@ -8,6 +8,8 @@ from airflow.operators.python import PythonOperator
 from helpers.mongo import get_document, update_document, get_collection
 from helpers.hdfs import read as hdfs_read, write as hdfs_write
 
+from bson import ObjectId
+
 logger = logging.getLogger("docuscan.pipeline")
 
 try:
@@ -37,6 +39,32 @@ except ImportError:
     def validate(entities: dict, classification: dict, document_id: str, collection=None) -> dict:
         return {"is_valid": True, "anomalies": []}
 
+def create_or_link_case(document_id: str, entities: dict, db):
+    siret = entities.get("siret")
+
+    if not siret:
+        return None
+
+    existing_case = db.cases.find_one({"siret": siret})
+
+    if existing_case:
+        case_id = existing_case["_id"]
+    else:
+        case = {
+            "company_name": entities.get("company_name", "Unknown"),
+            "siret": siret,
+            "status": "pending",
+            "created_at": datetime.utcnow()
+        }
+        result = db.cases.insert_one(case)
+        case_id = result.inserted_id
+
+    db.documents.update_one(
+        {"_id": ObjectId(document_id)},
+        {"$set": {"case_id": case_id}}
+    )
+
+    return case_id
 
 def _get_document_id(context) -> str:
     conf = context.get("dag_run").conf or {}
@@ -213,6 +241,9 @@ def sync_mongodb(**context):
     status = "Analyse terminee" if not has_anomalies else "A verifier"
 
     try:
+        collection = get_collection()
+        create_or_link_case(document_id, entities_details, collection.database)
+        
         update_document(document_id, {
             "status": status,
             "ocr_text": curated_data.get("ocr_text"),
