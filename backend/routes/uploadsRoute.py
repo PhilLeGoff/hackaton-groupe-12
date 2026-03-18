@@ -8,6 +8,10 @@ from bson import ObjectId
 from config.database import document_collection
 from params import HDFS_WEBHDFS_URL, AIRFLOW_BASE_URL
 
+from config.database import document_collection
+from services.document_processing import DocumentProcessingError, process_document
+from utils.extractorMetaData import extract_docx_metadata, extract_pdf_metadata
+
 _router = APIRouter()
 
 ALLOWED_MIME_TYPES = {

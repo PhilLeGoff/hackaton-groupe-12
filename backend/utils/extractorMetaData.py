@@ -1,9 +1,11 @@
 from io import BytesIO
-from pypdf import PdfReader
-from docx import Document
-from PIL import Image, ExifTags
 
 def extract_pdf_metadata(content: bytes):
+    try:
+        from pypdf import PdfReader
+    except ImportError:
+        return {}
+
     reader = PdfReader(BytesIO(content))
     info = reader.metadata
 
@@ -17,6 +19,11 @@ def extract_pdf_metadata(content: bytes):
     }
     
 def extract_docx_metadata(content: bytes):
+    try:
+        from docx import Document
+    except ImportError:
+        return {}
+
     doc = Document(BytesIO(content))
     props = doc.core_properties
 
