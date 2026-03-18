@@ -11,14 +11,20 @@
 - Auto-creation de case par SIRET dans Airflow
 - Datasets synthetiques multi-format (PDF+PNG+JPG) avec bruit OCR, anomalies, 5 types de documents
 - SIRET Luhn valides, IBAN mod97 valides
+- Frontend : viewer PDF/image, boutons action (telecharger, valider, revoir), export JSON, edition inline
+- Auto-remplissage conformite via endpoint `/api/cases/{id}/autofill`
+- 16 endpoints backend (CRUD complet + download + autofill + metrics + pagination)
+- Health-checks Docker (mongodb, hdfs-namenode, airflow-postgres)
+- Tests IA (classification 5 tests + NER 16 tests + integration DI2)
+- Modele SVM entraine (tfidf_svm.joblib, 611 KB) + metrics.json
 
 **Ce qui manque (cahier des charges)** :
 
-- **Auto-remplissage formulaires** : le cahier exige que les formulaires CRM/Conformite soient pre-remplis par l'IA → pas encore fait
-- **Verification inter-documents** : le cahier exige de comparer SIRET entre facture et attestation d'un meme dossier → pas encore fait
-- Frontend : boutons sans handler, liens hardcodes, mock data, pas de viewer PDF
-- Modele SVM pas encore entraine (script pret, donnees pretes, juste besoin de lancer)
-- Demo live end-to-end pas encore testee
+- **Verification inter-documents** : le cahier exige de comparer SIRET entre facture et attestation d'un meme dossier → `validate_cross_documents()` pas encore fait
+- **Auto-remplissage CRM** : CaseDetailsPage utilise encore mockDocuments au lieu de l'API, pas d'appel autofill
+- **Tests backend** : 3 fichiers pytest existent mais quasi-vides (2 fonctions placeholder)
+- **4 boutons sans handler** : CRMPage ("+ Nouveau dossier", "Exporter"), CaseDetailsPage ("+ Ajouter un document", "Telecharger")
+- **Demo live end-to-end** pas encore testee
 
 ---
 
@@ -26,12 +32,15 @@
 
 ### P0 — Bloquant (DONE)
 
-- [X] **POST `/api/cases`** — Creer un dossier
+- [X] **POST `/api/cases`** — Creer un dossier (retourne camelCase conforme a CaseDetailResponse)
 - [X] **PUT `/api/cases/{id}`** — Mettre a jour statut/infos
 - [X] **POST `/api/compliances`** — Creer un controle de conformite
 - [X] **PUT `/api/compliances/{id}`** — Mettre a jour decision
 - [X] **PUT `/api/documents/{id}`** — Corriger/valider un document
-- [X] **Validation ObjectId** sur tous les endpoints `/{id}`
+- [X] **Validation ObjectId** sur tous les endpoints `/{id}` (InvalidId → 400)
+- [X] **GET `/api/cases`** retourne `{"data": [...]}` conforme a CaseListResponse
+- [X] **GET `/api/compliances`** retourne `{"data": [...]}` conforme a ComplianceListResponse
+- [X] **Tous les `update_one`/`insert_one` motor sont `await`**
 
 ### P1 — Important (DONE)
 
@@ -46,7 +55,7 @@
 - [X] Modeles Pydantic dans les reponses de route
 - [X] Endpoint `/api/documents/{id}/metrics` OCR
 
-### NOUVEAU — Endpoint auto-remplissage (cahier des charges)
+### NOUVEAU — Endpoint auto-remplissage (DONE)
 
 - [X] **GET `/api/cases/{id}/autofill`** — Agreger les donnees extraites de tous les docs du case
   - Fichier : `backend/routes/cases.py`
@@ -69,36 +78,31 @@
 
 ---
 
-## FS2 — Frontend CRM + Navigation + Style
+## FS2 — Frontend CRM + Navigation + Style (QUASI DONE)
 
-### P0 — Bloquant
+### P0 — Bloquant (DONE)
 
-- [ ] **Header branding** — Renommer "DocuFlow AI" → "DocuScan AI", logo "DF" → "DS"
-  - Fichier : `frontend/src/components/Header.jsx:16,19`
-- [ ] **Fixer les 6 liens hardcodes** :
-  - `Header.jsx:31` → `/crm/1` : lien vers `/crm`
-  - `Header.jsx:34` → `/compliance/1` : lien vers page liste compliance
-  - `HomePage.jsx:39,96` → `/compliance/1` : lien vers `/compliance`
-  - `DocumentDetailsPage.jsx:171` → `/crm/1` : retour dynamique
-  - `CompliancePage.jsx:241` → `/crm/1` : `/crm/${caseId}`
-- [ ] **Filtres CRM** — Implementer les 4 boutons filtre (Tous/Conforme/A verifier/Non conforme)
-  - Fichier : `CRMPage.jsx:153-164`
+- [X] **Header branding** — Renommer "DocuFlow AI" → "DocuScan AI", logo "DF" → "DS"
+- [X] **Fixer les 6 liens hardcodes** — Tous dynamiques maintenant
+- [X] **Filtres CRM** — 4 boutons filtre (Tous/Conforme/A verifier/Non conforme) fonctionnels
+
+### P0 — Auto-remplissage CRM (PARTIEL)
+
 - [ ] **CaseDetailsPage** — Remplacer `mockDocuments` par appel API
-  - Fichier : `CaseDetailsPage.jsx:185`
-
-### P0 — Auto-remplissage CRM (cahier des charges)
-
+  - Fichier : `CaseDetailsPage.jsx:185` — utilise encore `mockDocuments.map()`
 - [ ] **Auto-remplissage formulaire CRM**
   - Fichier : `CaseDetailsPage.jsx`
-  - Appeler `GET /api/cases/{id}/autofill` (necessite FS1)
+  - Appeler `GET /api/cases/{id}/autofill`
   - Pre-remplir les champs : raison sociale, SIRET, TVA, adresse
   - Afficher la liste des documents rattaches avec statut et anomalies
-  - Le formulaire doit se remplir automatiquement quand on ouvre un dossier
 
-### P1 — Important
+### P1 — Important (DONE)
 
-- [ ] **Refonte DashboardPage** — Theme light, composants partages, axios
-- [ ] **Refonte UploadPage** — Harmoniser style, axios
+- [X] **Refonte DashboardPage** — Migre vers axios
+- [X] **Refonte UploadPage** — Migre vers axios
+
+### P1 — Important (RESTE)
+
 - [ ] **Bouton "+ Nouveau dossier"** — Formulaire/modale
 - [ ] **Stats dynamiques** — Brancher sur vraies donnees
 - [ ] **Activite recente** — Brancher sur flux reel ou supprimer
@@ -111,58 +115,59 @@
 
 ---
 
-## FS3 — Frontend Documents + Compliance
+## FS3 — Frontend Documents + Compliance (DONE)
 
-### P0 — Bloquant
+> Branche : `FS3/frontend-documents-compliance-v2` — a merger dans main
 
-- [ ] **DocumentDetailsPage : anomalies et timeline jamais mis a jour depuis l'API**
-  - Fichier : `DocumentDetailsPage.jsx:75-76`
-- [ ] **Migrer fetch() → axios** dans DashboardPage et UploadPage
+### P0 — Bloquant (DONE)
 
-### P0 — Auto-remplissage Conformite (cahier des charges)
+- [X] **DocumentDetailsPage : anomalies et timeline depuis l'API**
+- [X] **Migrer fetch() → axios** dans DashboardPage et UploadPage
 
-- [ ] **Auto-remplissage formulaire Conformite**
-  - Fichier : `CompliancePage.jsx`
-  - Appeler `GET /api/cases/{id}/autofill` (necessite FS1)
-  - Pre-remplir : attestation URSSAF valide/expiree, KBIS present, RIB present
-  - Afficher les anomalies inter-documents detectees par DI3
+### P0 — Auto-remplissage Conformite (DONE)
+
+- [X] **Auto-remplissage formulaire Conformite**
+  - Appelle `GET /api/cases/{id}/autofill` via `Promise.allSettled`
+  - Pre-remplit : attestation URSSAF valide/expiree, KBIS present, RIB present, IBAN
+  - Affiche les anomalies inter-documents
   - Indicateur visuel : vert (conforme) / rouge (anomalie) / orange (incomplet)
 
-### P1 — Important
+### P1 — Important (DONE)
 
-- [ ] **Viewer PDF/image** — Remplacer placeholder par vrai viewer
-- [ ] **Bouton "Telecharger"** → GET `/api/documents/{id}/download`
-- [ ] **Bouton "Valider l'extraction"** → PUT `/api/documents/{id}`
-- [ ] **Bouton "Marquer a revoir"** → PUT `/api/documents/{id}`
-- [ ] **Boutons compliance** (Valider/Rejeter/Revoir) → PUT `/api/compliances/{id}`
+- [X] **Viewer PDF/image** — iframe PDF + img pour images, fallback placeholder
+- [X] **Bouton "Telecharger"** → GET `/api/documents/{id}/download`
+- [X] **Bouton "Valider l'extraction"** → PUT `/api/documents/{id}` status "validated"
+- [X] **Bouton "Marquer a revoir"** → PUT `/api/documents/{id}` status "to_review"
+- [X] **Boutons compliance** (Approuver/Rejeter/Revoir) → PUT `/api/compliances/{id}`
 
-### P2 — Nice to have
+### P2 — Nice to have (DONE)
 
-- [ ] Edition inline des extracted_fields
-- [ ] Export JSON des champs extraits
-- [ ] Export rapport compliance
-- [ ] Route 404 fallback
+- [X] Edition inline des extracted_fields
+- [X] Export JSON des champs extraits
+- [X] Export rapport compliance JSON
+- [X] Route 404 fallback
 
 ---
 
-## FS4 — Infrastructure + DevOps
+## FS4 — Infrastructure + DevOps (QUASI DONE)
 
-### P0 — Bloquant
+### P0 — Bloquant (DONE)
 
-- [X] **Fixer URLs hardcodees** — DashboardPage et UploadPage ignorent `.env`
-- [X] **Fixer `frontend/.env`** — `VITE_API_URL=http://127.0.0.1:8000` casse Docker
+- [X] **Fixer URLs hardcodees** — DashboardPage et UploadPage migres vers axios
+- [X] **Fixer `frontend/.env`** — `VITE_API_URL` configure
 
-### P1 — Important
+### P1 — Important (DONE)
 
-- [ ] **`.dockerignore`** pour backend et frontend
+- [X] **`.dockerignore`** pour backend et frontend
 - [X] **Logs Airflow** — Monter en volume
-- [ ] **Tests backend** — pytest pour routes CRUD
-- [X] **Tesseract + pdftoppm** dans Dockerfile backend (fait par DI2)
+- [X] **Tests backend** — fichiers pytest crees (test_cases, test_compliances, test_documents) ⚠️ quasi-vides (2 fonctions placeholder)
+- [X] **Tesseract + pdftoppm** dans Dockerfile backend
+- [X] **Health-checks Docker** — mongodb (mongosh ping), hdfs-namenode (curl), airflow-postgres (pg_isready)
 
 ### P2 — Nice to have
 
-- [ ] Health-checks Docker
 - [ ] CI pipeline GitHub Actions
+- [ ] Etoffer les tests backend (actuellement 2 fonctions placeholder)
 
 ---
 
@@ -226,9 +231,11 @@
 
 ---
 
-## DI3 — Anomaly Detection + Verification inter-documents
+## DI3 — Anomaly Detection + Verification inter-documents (PARTIEL)
 
 > Objectif : completer les regles deterministes + verification coherence ENTRE documents d'un meme dossier.
+
+> Etat actuel : `validate()` existe avec 10 checks (champs manquants, SIRET Luhn, IBAN mod97, TVA/SIREN coherence, dates format + logique, montants HT+TVA=TTC, doublons MongoDB). Pas de verification inter-documents, pas de tests, pas d'Isolation Forest.
 
 ### P0 — Bloquant
 
@@ -272,68 +279,36 @@
 ```
 DI1 (DONE) ──→ DI2 (DONE) ──→ DI3 (verification inter-docs)
                                   ↓
-FS1 (DONE) ──→ FS1 autofill endpoint
+FS1 (DONE) ──→ FS1 autofill (DONE)
                     ↓
-              FS2 auto-remplissage CRM
-              FS3 auto-remplissage Conformite
+              FS2 auto-remplissage CRM (A FAIRE)
+              FS3 auto-remplissage Conformite (DONE)
                     ↓
               DI3 fournit les anomalies inter-docs → FS3 les affiche
 
-FS4 (fix URLs) ──→ FS3 (migration fetch→axios)
+FS4 (DONE) ──→ FS3 migration fetch→axios (DONE)
 ```
 
-## ORDRE SUGGERE (temps restant)
-
-<<<<<<< HEAD
-● Matin J1 — Tout le monde en parallèle :
-
-- FS1 : CRUD cases/compliances + validation ObjectId + supprimer code mort
-- FS2 : branding Header, fixer liens hardcodés, filtres CRM
-- FS3 : fix anomalies/timeline useState, migration fetch→axios, fix URLs
-- FS4 : .dockerignore, Tesseract dans Dockerfile, rebuild conteneurs
-- DI1 : multi-format output (PDF+PNG+JPG+JPEG), SIRET/IBAN valides, générateur KBIS
-- DI2 : intégrer modèle pré-entraîné (zero-shot ou TF-IDF+SVM) + tests
-- DI3 : tests anomaly detection + tester pipeline Docker
-
-  Après-midi J1 — Features principales :
-- FS1 : endpoint download, auto-création case par SIRET
-- FS2 : refonte Dashboard/Upload (style + axios), CaseDetailsPage→API
-- FS3 : viewer PDF/image, boutons action (valider/rejeter/télécharger)
-- FS4 : tests pytest
-- DI1 : anomalies sur devis/RIB/URSSAF, pipeline bruit OCR, dataset large (500+/type)
-- DI2 : fine-tuning classification, améliorer NER (spaCy + fuzzy), formats dates
-- DI3 : Isolation Forest + script train, scoring d'anomalie
-
-  Matin J2 — Finalisation + intégration :
-- FS1+FS2+FS3 : pagination, stats dynamiques, toastify, polish UX
-- FS4 : CI pipeline
-- DI1+DI2+DI3 : benchmark complet (matrice de confusion, F1), validation croisée TVA, test end-to-end Docker
-  =======
+## RESTE A FAIRE — PRIORITES
 
 ```
-PRIORITE 1 — Exigences cahier des charges manquantes :
-  DI3 : verification inter-documents (detector.py)
-  FS1 : endpoint GET /api/cases/{id}/autofill
-  FS2 : auto-remplissage formulaire CRM
-  FS3 : auto-remplissage formulaire Conformite
-  DI2 : entrainer SVM en Docker + benchmark
+PRIORITE 1 — Exigences cahier des charges :
+  DI3 : verification inter-documents (validate_cross_documents)
+  DI3 : tests anomaly detection
+  FS2 : CaseDetailsPage → API au lieu de mockDocuments
+  FS2 : auto-remplissage CRM via autofill endpoint
+  Merger branche FS3/frontend-documents-compliance-v2 dans main
 
-PRIORITE 2 — Demo live fonctionnelle :
-  FS2 : header branding, liens hardcodes, filtres CRM
-  FS3 : anomalies/timeline depuis API, fetch→axios
-  FS4 : fix URLs frontend
-  FS3 : viewer PDF, boutons action
+PRIORITE 2 — Polish demo :
+  FS2 : boutons sans handler ("+ Nouveau dossier", "Exporter", "+ Ajouter un document")
+  FS2 : stats dynamiques HomePage
+  DI3 : Isolation Forest, scoring anomalie
+  FS4 : etoffer tests backend pytest
+  Test end-to-end complet en Docker
 
-PRIORITE 3 — Polish :
-  FS2 : stats dynamiques, refonte Dashboard/Upload
-  DI3 : Isolation Forest, scoring
-  FS4 : tests, dockerignore, logs
+PRIORITE 3 — Nice to have :
+  FS4 : CI GitHub Actions
+  DI2 : modele spaCy NER custom
+  DI3 : detection doublons, montants aberrants
+  FS2 : pagination, toastify
 ```
-
->>>>>>> acae271a1c9ebfcdf68c561a9878c2e1ed40842d
->>>>>>>
->>>>>>
->>>>>
->>>>
->>>
->>
