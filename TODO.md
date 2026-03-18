@@ -322,26 +322,25 @@ DI3 (test pipeline Docker)          ──→ Toute l'equipe (validation end-to-
 
 ## ORDRE SUGGERE
 
-**Jour 1** — Fondations :
-- FS1 : CRUD cases/compliances + validation ObjectId + supprimer code mort
-- FS2 : branding Header, fixer liens hardcodes, filtres CRM
-- FS3 : fix anomalies/timeline useState, migration fetch→axios
-- FS4 : fix URLs frontend, .dockerignore
-- DI1 : multi-format output (PDF+PNG+JPG+JPEG), generateur KBIS, SIRET/IBAN valides
-- DI2 : tests classification, integrer modele pre-entraine (zero-shot ou TF-IDF+SVM)
-- DI3 : tests anomaly detection, tester pipeline Docker
+● Matin J1 — Tout le monde en parallèle :
+  - FS1 : CRUD cases/compliances + validation ObjectId + supprimer code mort
+  - FS2 : branding Header, fixer liens hardcodés, filtres CRM
+  - FS3 : fix anomalies/timeline useState, migration fetch→axios, fix URLs
+  - FS4 : .dockerignore, Tesseract dans Dockerfile, rebuild conteneurs
+  - DI1 : multi-format output (PDF+PNG+JPG+JPEG), SIRET/IBAN valides, générateur KBIS
+  - DI2 : intégrer modèle pré-entraîné (zero-shot ou TF-IDF+SVM) + tests
+  - DI3 : tests anomaly detection + tester pipeline Docker
 
-**Jour 2** — Features :
-- FS1 : endpoint download, auto-creation case, pagination
-- FS2 : refonte Dashboard/Upload (style + axios), CaseDetailsPage→API, stats dynamiques
-- FS3 : viewer PDF/image, boutons action (valider/rejeter/telecharger)
-- FS4 : tests pytest, Tesseract dans Dockerfile
-- DI1 : anomalies sur devis/RIB/URSSAF, pipeline bruit OCR (noise.py), dataset large
-- DI2 : fine-tuning classification, ameliorer NER (spaCy + fuzzy matching), formats dates
-- DI3 : Isolation Forest + script train, validation croisee TVA, validation dates metier
+  Après-midi J1 — Features principales :
+  - FS1 : endpoint download, auto-création case par SIRET
+  - FS2 : refonte Dashboard/Upload (style + axios), CaseDetailsPage→API
+  - FS3 : viewer PDF/image, boutons action (valider/rejeter/télécharger)
+  - FS4 : tests pytest
+  - DI1 : anomalies sur devis/RIB/URSSAF, pipeline bruit OCR, dataset large (500+/type)
+  - DI2 : fine-tuning classification, améliorer NER (spaCy + fuzzy), formats dates
+  - DI3 : Isolation Forest + script train, scoring d'anomalie
 
-**Jour 3** — Polish :
-- FS2+FS3 : polish UX, toastify, export, pagination
-- FS4 : CI pipeline, health-checks
-- DI1 : variation layout/polices, ground truth IOB
-- DI2+DI3 : benchmark complet, matrice de confusion, scoring anomalies, dashboard metriques
+  Matin J2 — Finalisation + intégration :
+  - FS1+FS2+FS3 : pagination, stats dynamiques, toastify, polish UX
+  - FS4 : CI pipeline
+  - DI1+DI2+DI3 : benchmark complet (matrice de confusion, F1), validation croisée TVA, test end-to-end Docker
