@@ -57,9 +57,26 @@ async def _trigger_dag(document_id: str):
             timeout=15,
         )
         resp.raise_for_status()
-
-
-@_router.post("/api/upload")
+@_router.post(
+    "/api/upload",
+    openapi_extra={
+        "requestBody": {
+            "content": {
+                "multipart/form-data": {
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "files": {
+                                "type": "array",
+                                "items": {"type": "string", "format": "binary"}
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+)
 async def upload(files: list[UploadFile] = File(...)):
     if len(files) > MAX_FILES:
         raise HTTPException(
