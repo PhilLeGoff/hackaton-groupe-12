@@ -6,9 +6,36 @@ param(
 
 Write-Host "=== DocuScan AI ===" -ForegroundColor Cyan
 
-# Aller dans le dossier docker
+# Répertoire du script
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-Set-Location "$scriptDir/docker"
+
+# Recherche automatique du fichier docker-compose
+$composeFiles = @(
+    Join-Path $scriptDir "docker-compose.yml",
+    Join-Path $scriptDir "docker-compose.yaml",
+    Join-Path $scriptDir "compose.yml",
+    Join-Path $scriptDir "compose.yaml",
+    Join-Path $scriptDir "docker\docker-compose.yml",
+    Join-Path $scriptDir "docker\docker-compose.yaml",
+    Join-Path $scriptDir "docker\compose.yml",
+    Join-Path $scriptDir "docker\compose.yaml"
+)
+
+$composeFile = $composeFiles | Where-Object { Test-Path $_ } | Select-Object -First 1
+
+if (-not $composeFile) {
+    Write-Host " Aucun fichier docker-compose trouvé." -ForegroundColor Red
+    Write-Host "Place un fichier compose dans :" -ForegroundColor Yellow
+    Write-Host "  - $scriptDir" 
+    Write-Host "  - $scriptDir\docker"
+    exit 1
+}
+
+# Aller dans le dossier contenant le compose
+$composeDir = Split-Path $composeFile
+Set-Location $composeDir
+
+Write-Host "📁 Fichier compose détecté : $composeFile" -ForegroundColor Green
 
 function RunDockerCompose {
     param([string[]]$Args)
