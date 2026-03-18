@@ -1,34 +1,31 @@
 import React, { useState, useRef } from "react";
-import { Link } from "react-router-dom";
 import { Layout } from "../components/Layout";
-import { api } from "../api/axios";
 
 export const UploadPage = () => {
-  const [file, setFile] = useState(null);
+  const [files, setFiles] = useState([]);
   const [uploadResult, setUploadResult] = useState(null);
   const [errorMessage, setErrorMessage] = useState("");
   const [isUploading, setIsUploading] = useState(false);
 
   const inputRef = useRef(null);
 
-  const handleFileSelect = (selectedFile) => {
-    setFile(selectedFile);
+  const handleFilesSelect = (selectedFiles) => {
+    const filesArray = Array.from(selectedFiles).slice(0, 3);
+    setFiles(filesArray);
     setUploadResult(null);
     setErrorMessage("");
   };
 
   const handleFileChange = (e) => {
-    const selectedFile = e.target.files[0];
-    if (selectedFile) {
-      handleFileSelect(selectedFile);
+    if (e.target.files.length > 0) {
+      handleFilesSelect(e.target.files);
     }
   };
 
   const handleDrop = (e) => {
     e.preventDefault();
-    const droppedFile = e.dataTransfer.files[0];
-    if (droppedFile) {
-      handleFileSelect(droppedFile);
+    if (e.dataTransfer.files.length > 0) {
+      handleFilesSelect(e.dataTransfer.files);
     }
   };
 
@@ -41,8 +38,8 @@ export const UploadPage = () => {
   };
 
   const handleUpload = async () => {
-    if (!file) {
-      setErrorMessage("Veuillez choisir un fichier.");
+    if (files.length === 0) {
+      setErrorMessage("Veuillez choisir au moins un fichier.");
       return;
     }
 
@@ -51,13 +48,26 @@ export const UploadPage = () => {
     setUploadResult(null);
 
     const formData = new FormData();
-    formData.append("files", file);
+    files.forEach((file) => {
+      formData.append("files", file);
+    });
 
     try {
-      const response = await api.post("/api/upload", formData);
-      setUploadResult(response.data);
+      const response = await fetch("http://127.0.0.1:8000/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setErrorMessage(data.detail || "Erreur lors de l'upload.");
+        return;
+      }
+
+      setUploadResult(data);
     } catch (error) {
-      setErrorMessage(error.response?.data?.detail || "Impossible de contacter le backend.");
+      setErrorMessage("Impossible de contacter le backend.");
       console.error(error);
     } finally {
       setIsUploading(false);
@@ -73,14 +83,18 @@ export const UploadPage = () => {
           onClick={openFileExplorer}
           className="border-2 border-dashed border-gray-500 p-10 rounded-lg text-center w-[420px] cursor-pointer"
         >
-          <p className="text-lg mb-2">Glissez votre document ici</p>
+          <p className="text-lg mb-2">Glissez vos documents ici</p>
 
           <p className="text-sm text-gray-400">
-            ou cliquez pour choisir un fichier
+            ou cliquez pour choisir un ou plusieurs fichiers
           </p>
 
           <p className="text-xs text-gray-500 mt-2">
-            Formats acceptés : PDF, JPEG, JPG, PNG
+            Formats acceptés : PDF, DOCX, JPEG, JPG, PNG, TXT
+          </p>
+
+          <p className="text-xs text-gray-500 mt-1">
+            Maximum : 3 fichiers
           </p>
 
           <button
@@ -90,22 +104,28 @@ export const UploadPage = () => {
             }}
             className="mt-4 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded"
           >
-            Choisir un fichier
+            Choisir des fichiers
           </button>
 
           <input
             ref={inputRef}
             type="file"
-            accept=".pdf,.jpeg,.jpg,.png"
+            accept=".pdf,.docx,.jpeg,.jpg,.png,.txt"
             onChange={handleFileChange}
+            multiple
             hidden
           />
         </div>
 
-        {file && (
-          <p className="text-green-400">
-            Fichier sélectionné : {file.name}
-          </p>
+        {files.length > 0 && (
+          <div className="text-green-400 text-sm">
+            <p className="mb-2 font-semibold">Fichiers sélectionnés :</p>
+            <ul className="list-disc list-inside">
+              {files.map((file, index) => (
+                <li key={index}>{file.name}</li>
+              ))}
+            </ul>
+          </div>
         )}
 
         {errorMessage && <p className="text-red-400">{errorMessage}</p>}
@@ -118,24 +138,32 @@ export const UploadPage = () => {
           {isUploading ? "Upload en cours..." : "Upload"}
         </button>
 
-        {uploadResult?.files && (
+        {uploadResult && (
           <div className="mt-4 border border-gray-600 rounded-lg p-4 w-[420px] bg-gray-900 text-white">
             <h2 className="text-xl font-semibold mb-3">
               Résultat de l'upload
             </h2>
-            {uploadResult.files.map((f, i) => (
-              <div key={i} className="mb-2">
-                <p><strong>Nom :</strong> {f.filename}</p>
-                <p><strong>Statut :</strong> {f.status === "duplicate" ? "Doublon détecté" : "Uploadé"}</p>
-                {f.message && <p className="text-yellow-400 text-sm">{f.message}</p>}
-                <Link to={`/documents/${f.id}`} className="text-blue-400 hover:underline text-sm">
-                  Voir le document
-                </Link>
+
+            {uploadResult.files?.map((file, index) => (
+              <div key={index} className="mb-3 border-b border-gray-700 pb-2 last:border-b-0">
+                <p>
+                  <strong>Nom :</strong> {file.filename}
+                </p>
+                <p>
+                  <strong>Statut :</strong> {file.status}
+                </p>
+                {file.message && (
+                  <p>
+                    <strong>Message :</strong> {file.message}
+                  </p>
+                )}
+                {file.id && (
+                  <p>
+                    <strong>ID :</strong> {file.id}
+                  </p>
+                )}
               </div>
             ))}
-            <Link to="/dashboard" className="mt-3 block text-center text-blue-400 hover:underline text-sm">
-              Voir le dashboard
-            </Link>
           </div>
         )}
       </div>
