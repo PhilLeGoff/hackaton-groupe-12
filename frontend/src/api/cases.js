@@ -19,3 +19,8 @@ export const getCaseById = async (id) => {
     throw error;
   }
 };
+
+export const getAutofill = async (id) => {
+  const response = await api.get(`/api/cases/${id}/autofill`);
+  return response.data;
+};

@@ -19,3 +19,8 @@ export const getComplianceById = async (id) => {
     throw error;
   }
 };
+
+export const updateCompliance = async (id, decision) => {
+  const response = await api.put(`/api/compliances/${id}`, { decision });
+  return response.data;
+};
