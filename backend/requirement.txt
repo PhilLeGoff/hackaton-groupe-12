@@ -9,13 +9,3 @@ pypdf
 python-docx
 Pillow
 faker
-transformers
---extra-index-url https://download.pytorch.org/whl/cpu
-torch
-sentencepiece
-protobuf
-scikit-learn
-joblib
-spacy
-rapidfuzz
-numpy
