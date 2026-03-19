@@ -13,6 +13,9 @@ RUN apt-get update && \
 USER airflow
 
 # ---------------- PYTHON DEPENDENCIES ----------------
-COPY requirements.txt /opt/airflow/requirements.txt
+COPY airflow/requirements.txt /opt/airflow/requirements.txt
+COPY ia/requirements.txt /tmp/ia-requirements.txt
 
-RUN pip install --no-cache-dir -r /opt/airflow/requirements.txt
+RUN pip install --no-cache-dir -r /opt/airflow/requirements.txt && \
+    pip install --no-cache-dir -r /tmp/ia-requirements.txt && \
+    python -m spacy download fr_core_news_md
