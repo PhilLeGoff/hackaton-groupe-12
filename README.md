@@ -26,63 +26,159 @@ Plateforme de traitement automatisé de documents administratifs (factures, devi
 ## Architecture
 
 ```
-                              ┌───────────────┐
-                              │  Utilisateur   │
-                              │  Upload PDF /  │
-                              │  JPEG / PNG    │
-                              └───────┬───────┘
-                                      │
-                                      ▼
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                              Docker Compose                                     │
-│                                                                                 │
-│  ┌──────────────┐       ┌──────────────┐       ┌──────────────┐                │
-│  │              │       │              │       │              │                │
-│  │   React      │──────▶│   FastAPI     │──────▶│   MongoDB    │                │
-│  │   Front-end  │◀──────│   Backend     │◀──────│              │                │
-│  │   :5173      │       │   :8000      │       │  Hackathon   │                │
-│  │              │       │              │       │  (database)  │                │
-│  │  Upload      │       │  /api/upload │       │              │                │
-│  │  Dashboard   │       │  /api/docs   │       │  documents   │                │
-│  │  CRM         │       │  /api/cases  │       │  cases       │                │
-│  │  Conformité  │       │  /api/compl. │       │  compliances │                │
-│  │              │       │              │       │              │                │
-│  └──────────────┘       └──────┬───────┘       └──────▲───────┘                │
-│                                │                      │                         │
-│                    ┌───────────┴───────────┐          │ sync                    │
-│                    │                       │          │ (tâche 8)               │
-│                    ▼                       ▼          │                         │
-│  ┌─────────────────────┐    ┌──────────────────────────────────────────────┐   │
-│  │                     │    │                                              │   │
-│  │    Hadoop HDFS      │    │     Airflow DAG — document_pipeline          │   │
-│  │    :9870 (WebHDFS)  │    │     :8080 (UI)                              │   │
-│  │                     │    │                                              │   │
-│  │  ┌───────────────┐  │◀──│──  1. start_processing                       │   │
-│  │  │   Raw Zone    │──│──▶│──  2. run_ocr (Tesseract)                    │   │
-│  │  │   /raw/{id}/  │  │   │                                              │   │
-│  │  ├───────────────┤  │◀──│──  3. store_clean_hdfs                       │   │
-│  │  │  Clean Zone   │  │   │  4. extract_entities  (spaCy + regex)       │   │
-│  │  │  /clean/{id}/ │  │   │  5. classify_document (SVM + zero-shot)     │   │
-│  │  ├───────────────┤  │   │  6. validate_coherence (règles + Luhn)      │   │
-│  │  │ Curated Zone  │  │◀──│──  7. store_curated_hdfs                     │   │
-│  │  │ /curated/{id}/│  │   │  8. sync_mongodb ──────────────────────────│───┘
-│  │  └───────────────┘  │   │     + auto-création case par SIRET          │
-│  └─────────────────────┘   │                                              │
-│                             │  ┌────────────────┐                         │
-│                             │  │ ia/             │  Modules IA             │
-│                             │  │ ocr/pipeline    │  ✅ OCR Tesseract       │
-│                             │  │ nlp/ner         │  ✅ NER regex+spaCy     │
-│                             │  │ classif/        │  ✅ SVM+zero-shot       │
-│                             │  │ anomaly/        │  ✅ Règles validation   │
-│                             │  └────────────────┘                         │
-│                             └──────────────────────────────────────────────┘
-│                                                                                 │
-└─────────────────────────────────────────────────────────────────────────────────┘
+ ┌─────────────────────────────────────────────────────────────────────────────┐
+ │                            Docker Compose                                  │
+ │                                                                            │
+ │   ┌────────────┐       ┌────────────┐       ┌────────────────┐            │
+ │   │  React     │       │  FastAPI   │       │    MongoDB     │            │
+ │   │  Frontend  │◄─────►│  Backend   │◄─────►│                │            │
+ │   │  :5173     │ REST  │  :8000     │ async │  Hackathon DB  │            │
+ │   └────────────┘       └─────┬──────┘       └───────▲────────┘            │
+ │                              │                      │                     │
+ │                  ┌───────────┼───────────┐           │ sync               │
+ │                  │  fichier  │  trigger  │           │ (tâche 8)          │
+ │                  ▼           ▼           │           │                     │
+ │   ┌────────────────┐   ┌────────────────┴───────────┴──────────────┐      │
+ │   │  Hadoop HDFS   │   │  Airflow DAG — document_pipeline         │      │
+ │   │  :9870         │   │  :8080                                    │      │
+ │   │                │   │                                           │      │
+ │   │  ┌──────────┐  │   │  ┌─────────┐   ┌──────────┐             │      │
+ │   │  │ /raw/    │◄─┼───┼──┤ 1. OCR  ├──►│ 2. Clean │             │      │
+ │   │  │ Bronze   │  │   │  └─────────┘   └────┬─────┘             │      │
+ │   │  ├──────────┤  │   │                     │                    │      │
+ │   │  │ /clean/  │◄─┼───┼─────────────────────┘                   │      │
+ │   │  │ Silver   │──┼───┼──►┌─────────┐  ┌──────────┐  ┌───────┐ │      │
+ │   │  ├──────────┤  │   │  │ 3. NER  ├─►│ 4. Class ├─►│5. Val │  │      │
+ │   │  │/curated/ │◄─┼───┼──────────────────────────────┤       │  │      │
+ │   │  │ Gold     │  │   │  └─────────┘  └──────────┘  └───┬───┘  │      │
+ │   │  └──────────┘  │   │                                 │      │      │
+ │   └────────────────┘   │  ┌─────────────┐  ┌─────────────┘      │      │
+ │                        │  │ 7. Sync DB  │◄─┘                    │      │
+ │                        │  │             ├─── auto-create case   │      │
+ │                        │  └─────────────┘                       │      │
+ │                        │                                        │      │
+ │                        │  Modules IA :                          │      │
+ │                        │  ● OCR Tesseract (fra+eng)             │      │
+ │                        │  ● NER regex + spaCy + fuzzy           │      │
+ │                        │  ● Classification SVM + zero-shot      │      │
+ │                        │  ● Validation 13+ règles               │      │
+ │                        └────────────────────────────────────────┘      │
+ │                                                                        │
+ └────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Flux upload** : Front → FastAPI → métadonnées MongoDB + fichier HDFS Raw → trigger Airflow DAG
-**Flux pipeline** : Airflow lit HDFS Raw → OCR → HDFS Clean → NER/Classif/Anomaly → HDFS Curated → sync MongoDB + auto-création case
-**Flux lecture** : Front → FastAPI → MongoDB (données structurées)
+### Diagramme d'architecture (Mermaid)
+
+```mermaid
+graph TB
+    Front["Frontend\nReact + Vite\n:5173"] <-->|"API REST"| Back["Backend\nFastAPI\n:8000"]
+    Back <--> Mongo[("MongoDB\n:27017")]
+    Back -->|"fichier brut"| HDFS[("HDFS\n:9870")]
+    Back -->|"trigger"| Airflow["Airflow\n:8080"]
+    Airflow <--> Mongo
+    Airflow <--> HDFS
+    Airflow --> IA["Modules IA\nOCR / NLP / Classification\nAnomalies"]
+
+    style Front fill:#3b82f6,color:#fff
+    style Back fill:#f59e0b,color:#fff
+    style Mongo fill:#10b981,color:#fff
+    style HDFS fill:#10b981,color:#fff
+    style Airflow fill:#8b5cf6,color:#fff
+    style IA fill:#ef4444,color:#fff
+```
+
+### Flux utilisateur détaillé (Mermaid)
+
+```mermaid
+sequenceDiagram
+    actor User as Utilisateur
+    participant Front as Frontend
+    participant Back as Backend
+    participant Mongo as MongoDB
+    participant HDFS as HDFS
+    participant Air as Airflow
+
+    Note over User,Air: Upload (Bronze)
+    User->>Front: Upload document (PDF/image)
+    Front->>Back: POST /api/upload
+    Back->>Mongo: Sauvegarder metadata (status: uploaded)
+    Back->>HDFS: Ecrire dans /raw/{id}/ (Bronze)
+    Back->>Air: Trigger DAG (document_id)
+    Back-->>Front: 200 OK
+
+    Note over User,Air: Traitement — Bronze → Silver
+    Air->>Mongo: status → processing
+    Air->>HDFS: Lire fichier brut /raw/{id}/ (Bronze)
+    Air->>Air: OCR (extract_text)
+    Air->>HDFS: Ecrire texte OCR /clean/{id}/ (Silver)
+
+    Note over User,Air: Traitement — Silver → Gold
+    Air->>Air: NER (extract_entities)
+    Air->>Air: Classification (classify_document)
+    Air->>Air: Validation (validate_coherence)
+    Air->>HDFS: Ecrire JSON enrichi /curated/{id}/ (Gold)
+    Air->>Mongo: status → completed + resultats IA
+
+    Note over User,Air: Consultation
+    User->>Front: Ouvre dashboard
+    Front->>Back: GET /api/documents
+    Back->>Mongo: Lire documents
+    Back-->>Front: Liste + statuts
+    User->>Front: Clique document
+    Front->>Back: GET /api/documents/{id}
+    Back-->>Front: OCR, entites, anomalies
+    Front-->>User: Affiche resultats
+```
+
+### Pipeline Airflow — Data Lake Bronze / Silver / Gold (Mermaid)
+
+```mermaid
+graph TD
+    T1["Start Processing"] --> T2["OCR\nextract_text()"]
+
+    subgraph Bronze["Bronze — Donnees brutes"]
+        T2
+    end
+
+    T2 --> T3["Store Clean\nHDFS /clean/"]
+    T3 --> T4["Extraction Entites\nextract_ner()"]
+    T3 --> T5["Classification\nclassify()"]
+
+    subgraph Silver["Silver — Donnees nettoyees"]
+        T3
+        T4
+        T5
+    end
+
+    T4 --> T6["Validation\nvalidate()"]
+    T5 --> T6
+    T6 --> T7["Store Curated\nHDFS /curated/"]
+    T7 --> T8["Sync MongoDB\nstatus → completed"]
+
+    subgraph Gold["Gold — Donnees validees"]
+        T6
+        T7
+        T8
+    end
+
+    style T1 fill:#6b7280,color:#fff
+    style T2 fill:#ef4444,color:#fff
+    style T3 fill:#10b981,color:#fff
+    style T4 fill:#ef4444,color:#fff
+    style T5 fill:#ef4444,color:#fff
+    style T6 fill:#f59e0b,color:#fff
+    style T7 fill:#10b981,color:#fff
+    style T8 fill:#3b82f6,color:#fff
+    style Bronze fill:#cd7f3220,stroke:#cd7f32,stroke-width:2px
+    style Silver fill:#c0c0c020,stroke:#c0c0c0,stroke-width:2px
+    style Gold fill:#ffd70020,stroke:#ffd700,stroke-width:2px
+```
+
+### Flux résumé
+
+- **Upload** : Front → FastAPI → métadonnées MongoDB + fichier HDFS Raw → trigger Airflow DAG
+- **Pipeline** : Airflow lit HDFS Raw → OCR → HDFS Clean → NER/Classif/Anomaly → HDFS Curated → sync MongoDB + auto-création case
+- **Lecture** : Front → FastAPI → MongoDB (données structurées)
 
 ### Stockage — HDFS + MongoDB
 
@@ -140,6 +236,8 @@ hackaton-groupe-12/
 ├── data/                      # Générateurs de datasets synthétiques + seed démo
 │   ├── generators/            # 5 types : factures, devis, KBIS, URSSAF, RIB
 │   └── seed_demo.py           # Script de seed : 3 dossiers fournisseurs (11 docs, 3 formats)
+│
+├── docs/                      # Diagrammes Mermaid (architecture, flux, pipeline)
 │
 ├── docker/
 │   └── docker-compose.yml     # 8 services (mongo, backend, frontend, hdfs×2, airflow×3)
@@ -297,9 +395,9 @@ docker exec -e API_URL=http://localhost:8000 docuscan-backend python /app/data/s
 ### Modèle SVM — Classification
 
 Le modèle entraîné (`ia/classification/model/tfidf_svm.joblib`) est inclus dans le repo :
-- **520 échantillons** (416 train / 104 test)
+- **620 échantillons** (496 train / 124 test)
 - **5 classes** : Facture, Devis, Attestation (URSSAF), KBIS, RIB
-- **100% accuracy** (F1 = 1.0 sur toutes les classes)
+- **99% accuracy** (F1 = 0.99 sur toutes les classes)
 - Métriques détaillées dans `ia/classification/model/metrics.json`
 
 ---
