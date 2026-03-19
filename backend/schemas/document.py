@@ -23,6 +23,7 @@ class DocumentResponse(BaseModel):
     confidence: Optional[float]
 
 class DocumentDetailResponse(DocumentResponse):
+    case_id: Optional[str] = None
     ocr_text: Optional[str]
     entities: Optional[dict]
     classification: Optional[dict]

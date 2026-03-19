@@ -5,8 +5,8 @@ from typing import Optional, List, Any
 class CaseCreate(BaseModel):
     company_name: str = Field(..., example="Total Energies")
     siret: str = Field(..., min_length=14, max_length=14)
-    contact: str
-    sector: str
+    contact: Optional[str] = None
+    sector: Optional[str] = None
 
 class CaseUpdate(BaseModel):
     company_name: Optional[str] = None
@@ -14,6 +14,9 @@ class CaseUpdate(BaseModel):
     contact: Optional[str] = None
     sector: Optional[str] = None
     status: Optional[str] = None
+    vat: Optional[str] = None
+    iban: Optional[str] = None
+    address: Optional[str] = None
 
 # --- Réponse simple ---
 class CaseResponse(BaseModel):
@@ -21,7 +24,7 @@ class CaseResponse(BaseModel):
     companyName: Optional[str] = None
     siret: Optional[str] = None
     status: Optional[str] = None
-    documents: List[str] = []
+    documents: int = 0
     owner: Optional[str] = None
     updatedAt: Optional[str] = None
 
@@ -31,7 +34,7 @@ class CaseDetailResponse(BaseModel):
     companyName: Optional[str] = None
     siret: Optional[str] = None
     status: Optional[str] = None
-    documents: List[str] = []
+    documents: int = 0
     contact: Optional[str] = None
     sector: Optional[str] = None
     updatedAt: Optional[str] = None
