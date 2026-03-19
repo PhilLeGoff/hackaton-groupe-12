@@ -98,10 +98,10 @@ async def get_documents(
             "offset": offset
         }
 
-    except Exception:
+    except Exception as e:
         raise HTTPException(
             status_code=500,
-            detail="Impossible de se connecter a la base de donnees"
+            detail=f"Impossible de se connecter a la base de donnees :{e}"
         )
 
 # Get document by ID

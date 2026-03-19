@@ -16,14 +16,12 @@ WORKDIR /app
 RUN python -m pip install --upgrade pip
 
 # Copie des dépendances d'abord (pour profiter du cache Docker)
-COPY requirement.txt .
+COPY requirements.txt .
 
 
 # Installation des dépendances
-RUN pip install --no-cache-dir -r requirement.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Télécharger le modèle spaCy français
-RUN python -m spacy download fr_core_news_md
 
 # Copie du code source
 COPY . .
