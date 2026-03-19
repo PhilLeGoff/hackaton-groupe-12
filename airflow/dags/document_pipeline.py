@@ -40,22 +40,40 @@ except ImportError:
         return {"is_valid": True, "anomalies": []}
 
 def create_or_link_case(document_id: str, entities: dict, db):
-    siret = entities.get("siret")
+    siret = entities.get("siret") or entities.get("supplier_siret")
+    siren = entities.get("siren")
+    company_name = entities.get("company_name") or entities.get("supplier_name") or entities.get("denomination")
+    iban = entities.get("iban")
 
-    if not siret:
+    # Déduire le SIREN depuis le SIRET (9 premiers chiffres)
+    if not siren and siret and len(siret) >= 9:
+        siren = siret[:9]
+
+    if not siret and not siren and not company_name:
         return None
 
-    existing_case = db.cases.find_one({"siret": siret})
+    existing_case = None
+
+    # Try to find existing case by SIRET, then SIREN (prefix match), then company_name
+    if siret:
+        existing_case = db.cases.find_one({"siret": siret})
+    if not existing_case and siren:
+        existing_case = db.cases.find_one({"siret": {"$regex": f"^{siren}"}})
+    if not existing_case and company_name:
+        existing_case = db.cases.find_one({"company_name": company_name})
 
     if existing_case:
         case_id = existing_case["_id"]
     else:
         case = {
-            "company_name": entities.get("company_name", "Unknown"),
-            "siret": siret,
+            "company_name": company_name or "Unknown",
+            "siret": siret or "",
+            "siren": siren or "",
             "status": "pending",
             "created_at": datetime.utcnow()
         }
+        if iban:
+            case["iban"] = iban
         result = db.cases.insert_one(case)
         case_id = result.inserted_id
 
