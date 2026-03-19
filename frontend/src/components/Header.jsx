@@ -27,23 +27,20 @@ export const Header = () => {
           </div>
           <div>
             <p className="text-lg font-bold text-slate-900">DocuScan AI</p>
-            <p className="text-xs text-slate-500">CRM & conformité documentaire</p>
+            <p className="text-xs text-slate-500">Traitement documentaire intelligent</p>
           </div>
         </Link>
 
         {/* Desktop nav */}
         <nav className="hidden items-center gap-2 md:flex">
-          <NavLink to="/" className={navClass} end>
-            Accueil
-          </NavLink>
-          <NavLink to="/crm" className={navClass}>
-            CRM
-          </NavLink>
           <NavLink to="/upload" className={navClass}>
             Dépôt
           </NavLink>
           <NavLink to="/dashboard" className={navClass}>
-            Suivi
+            Documents
+          </NavLink>
+          <NavLink to="/crm" className={navClass}>
+            Dossiers
           </NavLink>
         </nav>
 
@@ -67,17 +64,14 @@ export const Header = () => {
       {mobileOpen && (
         <nav className="border-t border-slate-200 bg-white px-6 pb-4 pt-2 md:hidden">
           <div className="flex flex-col gap-1">
-            <NavLink to="/" className={mobileNavClass} end onClick={() => setMobileOpen(false)}>
-              Accueil
-            </NavLink>
-            <NavLink to="/crm" className={mobileNavClass} onClick={() => setMobileOpen(false)}>
-              CRM
-            </NavLink>
             <NavLink to="/upload" className={mobileNavClass} onClick={() => setMobileOpen(false)}>
               Dépôt
             </NavLink>
             <NavLink to="/dashboard" className={mobileNavClass} onClick={() => setMobileOpen(false)}>
-              Suivi
+              Documents
+            </NavLink>
+            <NavLink to="/crm" className={mobileNavClass} onClick={() => setMobileOpen(false)}>
+              Dossiers
             </NavLink>
           </div>
         </nav>

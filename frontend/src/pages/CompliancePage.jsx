@@ -198,8 +198,8 @@ export const CompliancePage = () => {
 
   return (
     <Layout
-      title={`Conformité du dossier #${caseId}`}
-      subtitle="Vérifie les pièces obligatoires, analyse les incohérences et prends une décision finale sur la conformité du dossier."
+      title="Contrôle de conformité"
+      subtitle="Vérification des pièces obligatoires, détection des incohérences inter-documents et prise de décision."
     >
       <div className="space-y-8">
         {error && <ErrorAlert message={error} />}

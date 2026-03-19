@@ -33,7 +33,7 @@ const normalizeCase = (item) => ({
     item.companyName || item.company_name || item.name || "Entreprise inconnue",
   siret: item.siret || item.companySiret || "Non renseigné",
   status: normalizeStatus(item.status),
-  documents: item.documents ?? item.documentsCount ?? 0,
+  documents: typeof item.documents === "number" ? item.documents : (Array.isArray(item.documents) ? item.documents.length : (item.documentsCount ?? 0)),
   contact: item.contact || item.email || "Non renseigné",
   sector: item.sector || item.activity || "Non renseigné",
   updatedAt: item.updatedAt || item.updated_at || "Récemment",
@@ -100,7 +100,35 @@ export const CaseDetailsPage = () => {
         }
 
         if (autofillResult.status === "fulfilled" && autofillResult.value) {
-          setAutofill(autofillResult.value);
+          const af = autofillResult.value;
+          setAutofill(af);
+
+          // Auto-remplissage automatique au chargement
+          const autoFields = [
+            ["company_name", af.company_name],
+            ["siret", af.siret],
+            ["vat", af.vat],
+            ["iban", af.compliance?.iban],
+            ["address", af.address],
+            ["urssaf_status", af.compliance?.urssaf_valid ? "Valide" : "Non valide"],
+            ["urssaf_expiry", af.compliance?.urssaf_expiry],
+          ];
+          const newForm = { ...emptyForm };
+          const newFilled = {};
+          for (const [key, value] of autoFields) {
+            if (value) {
+              newForm[key] = value;
+              newFilled[key] = true;
+            }
+          }
+          // Garder contact/sector du case s'ils existent
+          if (caseResult.status === "fulfilled" && caseResult.value) {
+            const cv = caseResult.value;
+            if (cv.contact) newForm.contact = cv.contact;
+            if (cv.sector) newForm.sector = cv.sector;
+          }
+          setForm(newForm);
+          setFilledFields(newFilled);
         }
 
         if (caseResult.status === "rejected") {
@@ -162,12 +190,16 @@ export const CaseDetailsPage = () => {
   const handleSaveForm = async () => {
     try {
       setSaving(true);
-      await api.put(`/api/cases/${caseId}`, {
-        company_name: form.company_name || undefined,
-        siret: form.siret || undefined,
-        contact: form.contact || undefined,
-        sector: form.sector || undefined,
-      });
+      const payload = {};
+      // Only send non-empty fields
+      if (form.company_name) payload.company_name = form.company_name;
+      if (form.siret) payload.siret = form.siret;
+      if (form.contact) payload.contact = form.contact;
+      if (form.sector) payload.sector = form.sector;
+      if (form.vat) payload.vat = form.vat;
+      if (form.iban) payload.iban = form.iban;
+      if (form.address) payload.address = form.address;
+      await api.put(`/api/cases/${caseId}`, payload);
       setError("");
     } catch (err) {
       console.error("Erreur sauvegarde:", err);
@@ -217,8 +249,8 @@ export const CaseDetailsPage = () => {
 
   return (
     <Layout
-      title={`Détail du dossier #${caseId}`}
-      subtitle="Fiche fournisseur auto-remplie par l'IA à partir des documents analysés."
+      title={`Dossier fournisseur`}
+      subtitle="Fiche auto-remplie par l'IA à partir des documents analysés (factures, KBIS, URSSAF, RIB)."
     >
       <div className="space-y-8">
         {error && <ErrorAlert message={error} />}
@@ -258,8 +290,8 @@ export const CaseDetailsPage = () => {
 
             {/* Formulaire fournisseur auto-rempli par l'IA */}
             <SectionCard
-              title="Fiche fournisseur"
-              subtitle="Formulaire auto-rempli par l'IA depuis les documents du dossier. Vous pouvez corriger les champs manuellement."
+              title="Informations fournisseur"
+              subtitle="Champs extraits automatiquement par l'IA depuis les documents du dossier. Cliquez sur « Auto-remplir » pour lancer l'extraction."
               rightElement={
                 <div className="flex gap-3">
                   <button
@@ -380,7 +412,7 @@ export const CaseDetailsPage = () => {
                     to="/crm"
                     className="inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-50"
                   >
-                    Retour au CRM
+                    Retour aux dossiers
                   </Link>
                 </div>
               </SectionCard>

@@ -344,9 +344,7 @@ export const DocumentDetailsPage = () => {
     URL.revokeObjectURL(url);
   };
 
-  const backLink = documentData.caseId
-    ? `/crm/${documentData.caseId}`
-    : "/crm";
+  const hasCaseId = !!documentData.caseId;
 
   return (
     <Layout
@@ -405,10 +403,10 @@ export const DocumentDetailsPage = () => {
                       {actionLoading === "download" ? "Téléchargement..." : "Télécharger"}
                     </button>
                     <Link
-                      to={backLink}
+                      to="/dashboard"
                       className="rounded-2xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-800"
                     >
-                      Retour dossier
+                      Retour documents
                     </Link>
                   </div>
                 }
@@ -475,6 +473,14 @@ export const DocumentDetailsPage = () => {
 
                 <SectionCard title="Actions">
                   <div className="flex flex-col gap-3">
+                    {hasCaseId && (
+                      <Link
+                        to={`/crm/${documentData.caseId}`}
+                        className="inline-flex items-center justify-center rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+                      >
+                        Voir le dossier fournisseur
+                      </Link>
+                    )}
                     <button
                       onClick={handleValidate}
                       disabled={!!actionLoading}
