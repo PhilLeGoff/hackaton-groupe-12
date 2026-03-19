@@ -15,11 +15,11 @@ Plateforme de traitement automatisé de documents administratifs (factures, devi
 | **Base de données** | MongoDB (motor async) | Fonctionnel |
 | **Data Lake** | Hadoop HDFS (3 zones : Raw / Clean / Curated) | Fonctionnel |
 | **OCR** | Tesseract (fra+eng), pypdf, python-docx | Fonctionnel |
-| **Classification** | TF-IDF+SVM / zero-shot XLM-RoBERTa / keywords | Fonctionnel |
+| **Classification** | TF-IDF+SVM (entraîné, 100% F1) / zero-shot XLM-RoBERTa / keywords | Fonctionnel |
 | **NLP / NER** | Regex + spaCy fr_core_news_md + rapidfuzz | Fonctionnel |
-| **Anomaly Detection** | Règles déterministes (Luhn, mod97, TVA, dates) | Fonctionnel |
+| **Anomaly Detection** | Règles déterministes (Luhn, SIREN, BIC, RIB key, mod97, TVA, dates, montants) | Fonctionnel |
 | **Orchestration** | Apache Airflow | Fonctionnel (DAG 8 tâches) |
-| **Conteneurisation** | Docker / Docker Compose | Fonctionnel (8 services) |
+| **Conteneurisation** | Docker / Docker Compose (cache layers, limites mémoire, .dockerignore) | Fonctionnel (8 services) |
 
 ---
 
@@ -128,7 +128,7 @@ hackaton-groupe-12/
 │   │   ├── train.py           # Entraînement SVM
 │   │   └── benchmark.py       # Matrice de confusion + F1
 │   └── anomaly_detection/
-│       └── detector.py        # 10+ règles (Luhn, mod97, TVA, dates, montants)
+│       └── detector.py        # 13+ règles (Luhn, SIREN, BIC, clé RIB, mod97, TVA, dates, montants)
 │
 ├── airflow/                   # Orchestration Apache Airflow
 │   ├── dags/
@@ -137,8 +137,9 @@ hackaton-groupe-12/
 │       ├── mongo.py           # Client pymongo sync
 │       └── hdfs.py            # Client WebHDFS REST
 │
-├── data/                      # Générateurs de datasets synthétiques
-│   └── generators/            # 5 types : factures, devis, KBIS, URSSAF, RIB
+├── data/                      # Générateurs de datasets synthétiques + seed démo
+│   ├── generators/            # 5 types : factures, devis, KBIS, URSSAF, RIB
+│   └── seed_demo.py           # Script de seed : 3 dossiers fournisseurs (11 docs, 3 formats)
 │
 ├── docker/
 │   └── docker-compose.yml     # 8 services (mongo, backend, frontend, hdfs×2, airflow×3)
@@ -226,7 +227,7 @@ npm run dev                   # http://localhost:5173
 
 ## Pipeline Airflow
 
-DAG `document_pipeline` — 8 tâches séquentielles, déclenché par le backend à chaque upload :
+DAG `document_pipeline` — 8 tâches séquentielles, déclenché par le backend à chaque upload. Pool ML (2 slots) pour les tâches IA, parallélisme contrôlé :
 
 ```
 start_processing → run_ocr → store_clean_hdfs → extract_entities → classify_document → validate_coherence → store_curated_hdfs → sync_mongodb
@@ -239,7 +240,7 @@ start_processing → run_ocr → store_clean_hdfs → extract_entities → class
 | `store_clean_hdfs` | Écrit le texte OCR dans HDFS Clean |
 | `extract_entities` | Appelle `ia.nlp.ner.extract()` — regex + spaCy + fuzzy |
 | `classify_document` | Appelle `ia.classification.classifier.classify()` — SVM / zero-shot / keywords |
-| `validate_coherence` | Appelle `ia.anomaly_detection.detector.validate()` — 10+ vérifications |
+| `validate_coherence` | Appelle `ia.anomaly_detection.detector.validate()` — 13+ vérifications |
 | `store_curated_hdfs` | Écrit le JSON enrichi dans HDFS Curated |
 | `sync_mongodb` | Met à jour le document MongoDB + auto-création de case par SIRET |
 
@@ -277,6 +278,29 @@ def validate(entities: dict, classification: dict, document_id: str, collection=
 | Dossier complet | 4 docs (Facture+KBIS+URSSAF+RIB) → case approved | OK |
 | Dossier incomplet | 1 facture seule → case pending, pièces manquantes signalées | OK |
 | Multi-format | PDF, PNG, JPG tous traités par le même pipeline | OK |
+
+### Seed de données de démonstration
+
+Le script `data/seed_demo.py` génère et uploade 11 documents réalistes pour 3 dossiers fournisseurs couvrant tous les cas d'usage :
+
+| Dossier | Secteur | Documents | Formats | Anomalies |
+|---|---|---|---|---|
+| Durand Construction SARL | BTP | Facture + Devis + RIB + URSSAF + KBIS | PDF, PNG, JPG | Aucune |
+| TechNova Solutions SAS | IT | Facture + RIB + KBIS | PDF | Aucune |
+| Les Jardins de Provence EURL | Restauration | Facture + URSSAF + RIB | JPG, PNG, PDF | Montants HT+TVA≠TTC, URSSAF expirée |
+
+```bash
+# Lancer après docker compose up :
+docker exec -e API_URL=http://localhost:8000 docuscan-backend python /app/data/seed_demo.py
+```
+
+### Modèle SVM — Classification
+
+Le modèle entraîné (`ia/classification/model/tfidf_svm.joblib`) est inclus dans le repo :
+- **520 échantillons** (416 train / 104 test)
+- **5 classes** : Facture, Devis, Attestation (URSSAF), KBIS, RIB
+- **100% accuracy** (F1 = 1.0 sur toutes les classes)
+- Métriques détaillées dans `ia/classification/model/metrics.json`
 
 ---
 
