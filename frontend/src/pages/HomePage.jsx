@@ -5,7 +5,7 @@ export const HomePage = () => {
   return (
     <Layout
       title="Plateforme intelligente de gestion documentaire"
-      subtitle="DocuScan AI centralise les dossiers, analyse les documents extraits par l’IA et facilite le contrôle de conformité."
+      subtitle="DocuScan AI automatise l'extraction, la vérification et la validation des documents administratifs fournisseurs."
     >
       <section className="grid items-stretch gap-6 lg:grid-cols-3">
         <div className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white p-8 shadow-sm lg:col-span-2">
@@ -14,24 +14,31 @@ export const HomePage = () => {
 
           <div className="relative">
             <span className="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600">
-              Hackathon • Front React CRM & Conformité
+              Hackathon 2026 — OCR + NLP + Détection d'anomalies
             </span>
 
             <h2 className="mt-5 max-w-2xl text-4xl font-bold leading-tight text-slate-900 md:text-5xl">
-              DocuScan AI pour centraliser, vérifier et valider les documents
+              Déposez vos documents, l'IA s'occupe du reste
             </h2>
 
             <p className="mt-5 max-w-2xl text-base leading-7 text-slate-600">
-              Cette interface permet de suivre les dossiers, consulter les documents analysés,
-              afficher les champs extraits automatiquement et prendre une décision de conformité.
+              Factures, attestations URSSAF, Kbis, RIB — déposez-les et le pipeline
+              les classifie, extrait les données clés, détecte les incohérences et
+              pré-remplit automatiquement vos dossiers fournisseurs et contrôles de conformité.
             </p>
 
             <div className="mt-8 flex flex-wrap gap-3">
               <Link
-                to="/crm"
+                to="/upload"
                 className="inline-flex items-center rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
               >
-                Ouvrir le CRM
+                Déposer des documents
+              </Link>
+              <Link
+                to="/crm"
+                className="inline-flex items-center rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-slate-50"
+              >
+                Voir les dossiers
               </Link>
             </div>
           </div>
@@ -39,57 +46,39 @@ export const HomePage = () => {
 
         <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
           <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-            Modules disponibles
+            Comment ça marche
           </p>
 
           <div className="mt-6 space-y-4">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-              <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-slate-900 text-white">
+            <Link to="/upload" className="block rounded-2xl border border-slate-200 bg-slate-50 p-5 transition hover:border-slate-300 hover:bg-white">
+              <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-slate-900 text-white font-bold">
                 1
               </div>
-              <h3 className="text-lg font-semibold text-slate-900">CRM documentaire</h3>
+              <h3 className="text-lg font-semibold text-slate-900">Dépôt</h3>
               <p className="mt-2 text-sm leading-6 text-slate-600">
-                Liste des dossiers, informations d’entreprise, statut et accès rapide aux documents.
+                Importez vos documents (PDF, images, DOCX). Le pipeline Airflow se déclenche automatiquement.
               </p>
-              <Link
-                to="/crm"
-                className="mt-4 inline-flex text-sm font-semibold text-slate-900 hover:text-slate-700"
-              >
-                Accéder au module →
-              </Link>
-            </div>
+            </Link>
 
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-              <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-600 text-white">
+            <Link to="/dashboard" className="block rounded-2xl border border-slate-200 bg-slate-50 p-5 transition hover:border-slate-300 hover:bg-white">
+              <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-600 text-white font-bold">
                 2
               </div>
-              <h3 className="text-lg font-semibold text-slate-900">Dépôt de documents</h3>
+              <h3 className="text-lg font-semibold text-slate-900">Documents</h3>
               <p className="mt-2 text-sm leading-6 text-slate-600">
-                Déposez vos fichiers (PDF, images, DOCX) pour lancer l’extraction IA automatique.
+                Suivez le traitement : OCR, extraction d'entités, classification, détection d'anomalies.
               </p>
-              <Link
-                to="/upload"
-                className="mt-4 inline-flex text-sm font-semibold text-slate-900 hover:text-slate-700"
-              >
-                Déposer un document →
-              </Link>
-            </div>
+            </Link>
 
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-              <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white">
+            <Link to="/crm" className="block rounded-2xl border border-slate-200 bg-slate-50 p-5 transition hover:border-slate-300 hover:bg-white">
+              <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white font-bold">
                 3
               </div>
-              <h3 className="text-lg font-semibold text-slate-900">Suivi du pipeline</h3>
+              <h3 className="text-lg font-semibold text-slate-900">Dossiers & Conformité</h3>
               <p className="mt-2 text-sm leading-6 text-slate-600">
-                Suivi en temps réel du traitement des documents : OCR, NER, classification, validation.
+                Consultez les fiches fournisseurs auto-remplies et validez la conformité des documents.
               </p>
-              <Link
-                to="/dashboard"
-                className="mt-4 inline-flex text-sm font-semibold text-slate-900 hover:text-slate-700"
-              >
-                Voir le suivi →
-              </Link>
-            </div>
+            </Link>
           </div>
         </div>
       </section>

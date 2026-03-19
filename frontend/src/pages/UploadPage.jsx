@@ -68,8 +68,11 @@ export const UploadPage = () => {
   }, [uploadedFiles?.length]);
 
   const handleFilesSelect = (selectedFiles) => {
-    const filesArray = Array.from(selectedFiles).slice(0, 3);
-    setFiles(filesArray);
+    const newFiles = Array.from(selectedFiles);
+    setFiles((prev) => {
+      const combined = [...prev, ...newFiles];
+      return combined.slice(0, 3);
+    });
     setUploadedFiles(null);
     setErrorMessage("");
   };
@@ -140,14 +143,30 @@ export const UploadPage = () => {
         {/* Selected files */}
         {files.length > 0 && (
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <p className="text-sm font-semibold text-slate-900">
-              {files.length} fichier{files.length > 1 ? "s" : ""} prêt{files.length > 1 ? "s" : ""}
-            </p>
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold text-slate-900">
+                {files.length} fichier{files.length > 1 ? "s" : ""} prêt{files.length > 1 ? "s" : ""} ({3 - files.length} restant{3 - files.length > 1 ? "s" : ""})
+              </p>
+              <button
+                onClick={() => setFiles([])}
+                className="text-xs font-medium text-slate-500 hover:text-slate-800"
+              >
+                Tout retirer
+              </button>
+            </div>
             <ul className="mt-2 space-y-1">
               {files.map((file, i) => (
                 <li key={i} className="flex items-center justify-between text-sm text-slate-600">
                   <span>{file.name}</span>
-                  <span className="text-xs text-slate-400">{(file.size / 1024 / 1024).toFixed(1)} Mo</span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-slate-400">{(file.size / 1024 / 1024).toFixed(1)} Mo</span>
+                    <button
+                      onClick={() => setFiles((prev) => prev.filter((_, idx) => idx !== i))}
+                      className="text-xs font-medium text-red-500 hover:text-red-700"
+                    >
+                      ✕
+                    </button>
+                  </div>
                 </li>
               ))}
             </ul>
@@ -221,12 +240,29 @@ export const UploadPage = () => {
             </div>
 
             {allDone && (
-              <Link
-                to="/dashboard"
-                className="mt-4 inline-flex w-full justify-center rounded-2xl bg-slate-900 px-6 py-3 text-sm font-semibold text-white hover:bg-slate-800"
-              >
-                Voir le suivi
-              </Link>
+              <div className="mt-4 flex flex-col gap-3">
+                {uploadedFiles.length === 1 && uploadedFiles[0].id ? (
+                  <Link
+                    to={`/documents/${uploadedFiles[0].id}`}
+                    className="inline-flex w-full justify-center rounded-2xl bg-slate-900 px-6 py-3 text-sm font-semibold text-white hover:bg-slate-800"
+                  >
+                    Voir le document
+                  </Link>
+                ) : (
+                  <Link
+                    to="/dashboard"
+                    className="inline-flex w-full justify-center rounded-2xl bg-slate-900 px-6 py-3 text-sm font-semibold text-white hover:bg-slate-800"
+                  >
+                    Voir tous les documents
+                  </Link>
+                )}
+                <button
+                  onClick={() => { setUploadedFiles(null); setFiles([]); }}
+                  className="inline-flex w-full justify-center rounded-2xl border border-slate-200 bg-white px-6 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  Déposer d'autres documents
+                </button>
+              </div>
             )}
           </div>
         )}

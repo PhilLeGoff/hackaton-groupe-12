@@ -69,9 +69,11 @@ async def get_documents(
             query["status"] = status
         if case_id:
             try:
-                query["case_id"] = ObjectId(case_id)
+                case_oid = ObjectId(case_id)
+                # Match both ObjectId and string forms
+                query["case_id"] = {"$in": [case_oid, case_id]}
             except InvalidId:
-                raise HTTPException(status_code=400, detail="Invalid case_id")
+                query["case_id"] = case_id
 
         cursor = document_collection.find(query).skip(offset).limit(limit)
 
@@ -116,12 +118,17 @@ async def get_document(document_id: str):
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
 
+    # Convert case_id (ObjectId or str) to string for the frontend
+    raw_case_id = doc.get("case_id")
+    case_id_str = str(raw_case_id) if raw_case_id else None
+
     return {
         "id": str(doc["_id"]),
         "name": doc.get("name") or doc.get("filename"),
         "type": _get_type(doc),
         "status": doc.get("status"),
         "confidence": _get_confidence(doc),
+        "case_id": case_id_str,
         "ocr_text": doc.get("ocr_text"),
         "entities": doc.get("entities"),
         "classification": doc.get("classification"),

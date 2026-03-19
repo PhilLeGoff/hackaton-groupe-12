@@ -10,28 +10,77 @@ except ImportError:
     def validate_cross_documents(documents):
         return {"anomalies": [], "all_sirets_match": True}
 
+# Mapping label humain → clé technique pour reconstruire les entités depuis extracted_fields
+_LABEL_TO_KEY = {
+    "Numero de facture": "invoice_number",
+    "Numero de devis": "quote_number",
+    "Date d'emission": "issue_date",
+    "Date d'echeance": "due_date",
+    "Date de validite": "valid_until",
+    "Date d'expiration": "expiry_date",
+    "Fournisseur": "supplier_name",
+    "Client": "client_name",
+    "SIRET": "siret",
+    "SIRET fournisseur": "supplier_siret",
+    "SIRET client": "customer_siret",
+    "SIREN": "siren",
+    "TVA intracommunautaire": "vat_number",
+    "TVA fournisseur": "supplier_vat_number",
+    "TVA client": "customer_vat_number",
+    "Montant HT": "total_ht",
+    "Montant TVA": "total_tva",
+    "Montant TTC": "total_ttc",
+    "IBAN": "iban",
+    "BIC": "bic",
+    "Banque": "bank_name",
+    "Code NAF": "code_naf",
+    "Denomination": "denomination",
+    "Forme juridique": "forme_juridique",
+    "Capital social": "capital_social",
+    "Adresse du siege": "adresse_siege",
+    "RCS": "rcs",
+    "Greffe": "greffe",
+    "Date d'immatriculation": "date_immatriculation",
+    "Dirigeant": "dirigeant",
+}
+
+def _entities_from_extracted_fields(extracted_fields: list) -> dict:
+    """Reconstruit un dict d'entités à partir de la liste extracted_fields avec labels humains."""
+    entities = {}
+    for f in extracted_fields:
+        label = f.get("label", "")
+        value = f.get("value")
+        if not label or not value:
+            continue
+        key = _LABEL_TO_KEY.get(label, label)
+        entities[key] = value
+    return entities
+
 _router = APIRouter(prefix="/api/cases", tags=["cases"])
 
 # Get all cases
 @_router.get("", response_model=CaseListResponse)
 async def get_cases():
     try:
-        # comment: 
         cases = []
         async for case in case_collection.find():
+            case_id = case["_id"]
+            # Count documents linked to this case (try both ObjectId and string)
+            doc_count = await document_collection.count_documents({"case_id": case_id})
+            if doc_count == 0:
+                doc_count = await document_collection.count_documents({"case_id": str(case_id)})
             cases.append({
-            "id": str(case["_id"]),
-            "companyName": case.get("company_name"),
-            "siret": case.get("siret"),
-            "status": case.get("status"),
-            "documents": case.get("documents") or [],
-            "owner": case.get("owner"),
-            "updatedAt": case.get("updated_at"),
+                "id": str(case_id),
+                "companyName": case.get("company_name"),
+                "siret": case.get("siret"),
+                "status": case.get("status"),
+                "documents": doc_count,
+                "owner": case.get("owner"),
+                "updatedAt": case.get("updated_at"),
             })
         return {"data": cases}
     except Exception as e:
-        raise HTTPException(status_code=500,detail=f"erreur de connection : {e}")
-    # end try
+        raise HTTPException(status_code=500, detail=f"erreur de connection : {e}")
 
 # Get case by ID
 @_router.get("/{case_id}", response_model=CaseDetailResponse)
@@ -42,16 +91,21 @@ async def get_case(case_id: str):
         raise HTTPException(status_code=400, detail="Invalid case ID")
 
     case = await case_collection.find_one({"_id": oid})
-    
+
     if not case:
         raise HTTPException(status_code=404, detail="Case not found")
+
+    # Count documents linked to this case
+    doc_count = await document_collection.count_documents({"case_id": oid})
+    if doc_count == 0:
+        doc_count = await document_collection.count_documents({"case_id": str(oid)})
 
     return {
         "id": str(case["_id"]),
         "companyName": case.get("company_name"),
         "siret": case.get("siret"),
         "status": case.get("status"),
-        "documents": case.get("documents") or [],
+        "documents": doc_count,
         "contact": case.get("contact"),
         "sector": case.get("sector"),
         "updatedAt": case.get("updated_at")
@@ -69,7 +123,7 @@ async def create_case(payload: CaseCreate):
         "companyName": case.get("company_name"),
         "siret": case.get("siret"),
         "status": case.get("status"),
-        "documents": case.get("documents", []),
+        "documents": 0,
         "contact": case.get("contact"),
         "sector": case.get("sector"),
         "updatedAt": case.get("updated_at")
@@ -111,21 +165,33 @@ async def get_case_autofill(case_id: str):
     if not case:
         raise HTTPException(status_code=404, detail="Case not found")
 
-    # Collect all documents for this case
+    # Collect all documents for this case (try both ObjectId and string for case_id)
     documents = []
     raw_docs = []
     vat_found = None
     iban_found = None
     address_found = None
+    company_name_found = None
 
+    # Documents can have case_id as ObjectId or string depending on creation path
+    doc_cursor_results = []
     async for doc in document_collection.find({"case_id": oid}):
+        doc_cursor_results.append(doc)
+    if not doc_cursor_results:
+        async for doc in document_collection.find({"case_id": str(oid)}):
+            doc_cursor_results.append(doc)
+
+    for doc in doc_cursor_results:
         doc_type = doc.get("type") or (doc.get("classification") or {}).get("document_type")
-        entities = doc.get("entities") or {}
+        raw_entities = doc.get("entities") or {}
         extracted = doc.get("extracted_fields") or []
 
-        # Build entities dict from extracted_fields if entities is empty
+        # Use the "details" sub-dict from NER if available (contains granular fields)
+        entities = raw_entities.get("details", raw_entities) if isinstance(raw_entities, dict) else {}
+
+        # Fallback: rebuild entities from extracted_fields using label→key mapping
         if not entities and isinstance(extracted, list):
-            entities = {f.get("label", ""): f.get("value") for f in extracted}
+            entities = _entities_from_extracted_fields(extracted)
 
         raw_docs.append({
             "type": doc_type,
@@ -133,20 +199,31 @@ async def get_case_autofill(case_id: str):
             "extracted_fields": extracted,
         })
 
-        # Extract useful fields for autofill
+        # Extract useful fields for autofill — try all known key variants
         if not vat_found:
-            vat_found = entities.get("vat") or entities.get("vat_number") or entities.get("supplier_vat_number")
+            vat_found = (
+                raw_entities.get("vat")  # top-level NER key
+                or entities.get("vat_number")
+                or entities.get("supplier_vat_number")
+            )
         if not iban_found:
-            iban_found = entities.get("iban")
+            iban_found = raw_entities.get("iban") or entities.get("iban")
         if not address_found:
-            address_found = entities.get("address") or entities.get("supplier_address")
+            address_found = entities.get("adresse_siege") or entities.get("address") or entities.get("supplier_address")
+        if not company_name_found:
+            company_name_found = (
+                raw_entities.get("company_name")
+                or entities.get("supplier_name")
+                or entities.get("denomination")
+                or entities.get("client_name")
+            )
 
         documents.append(DocumentAutofill(
             type=doc_type,
             date=str(doc.get("created_at") or doc.get("processed_at") or ""),
             amounts={
-                "ht": entities.get("amount_ht") or entities.get("total_ht"),
-                "ttc": entities.get("amount_ttc") or entities.get("total_ttc")
+                "ht": raw_entities.get("amount_ht") or entities.get("total_ht"),
+                "ttc": raw_entities.get("amount_ttc") or entities.get("total_ttc")
             },
             status=doc.get("status"),
             anomalies=doc.get("anomalies") or []
@@ -169,9 +246,15 @@ async def get_case_autofill(case_id: str):
     )
     urssaf_expiry = None
     for doc_raw in raw_docs:
-        if "urssaf" in (doc_raw.get("type") or "").lower() or "attestation" in (doc_raw.get("type") or "").lower():
+        doc_type_lower = (doc_raw.get("type") or "").lower()
+        if "urssaf" in doc_type_lower or "attestation" in doc_type_lower:
             ents = doc_raw.get("entities") or {}
-            urssaf_expiry = ents.get("expiry_date") or ents.get("expiration_date") or ents.get("valid_until")
+            urssaf_expiry = (
+                ents.get("expiry_date")
+                or ents.get("expiration_date")
+                or ents.get("valid_until")
+                or ents.get("due_date")
+            )
             break
 
     compliance = ComplianceAutofill(
@@ -185,7 +268,7 @@ async def get_case_autofill(case_id: str):
     )
 
     return CaseAutofillResponse(
-        company_name=case.get("company_name"),
+        company_name=company_name_found or case.get("company_name"),
         siret=case.get("siret"),
         vat=vat_found or case.get("vat"),
         address=address_found or case.get("address"),

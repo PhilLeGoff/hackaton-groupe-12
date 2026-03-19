@@ -9,7 +9,7 @@ export const StatusBadge = ({ label, variant = "default" }) => {
 
   return (
     <span
-      className={`inline-flex rounded-full px-3 py-1 text-sm font-semibold ${variants[variant]}`}
+      className={`inline-flex whitespace-nowrap rounded-full px-3 py-1 text-sm font-semibold ${variants[variant]}`}
     >
       {label}
     </span>

@@ -122,7 +122,8 @@ services:
   # -------------------- AIRFLOW INIT --------------------
   airflow-init:
     build:
-      context: ../airflow
+      context: ..
+      dockerfile: airflow/Dockerfile
     container_name: docuscan-airflow-init
     restart: "no"
     environment: &airflow-env
@@ -132,6 +133,7 @@ services:
       - AIRFLOW__API__AUTH_BACKENDS=airflow.api.auth.backend.basic_auth
       - MONGO_URL=mongodb://admin:admin@mongodb:27017
       - HDFS_WEBHDFS_URL=http://hdfs-namenode:9870/webhdfs/v1
+      - PYTHONPATH=/opt/airflow:/opt/airflow/ia
     entrypoint: >
       bash -c "
         airflow db migrate &&
@@ -146,7 +148,8 @@ services:
   # -------------------- AIRFLOW WEBSERVER --------------------
   airflow-webserver:
     build:
-      context: ../airflow
+      context: ..
+      dockerfile: airflow/Dockerfile
     container_name: docuscan-airflow-webserver
     restart: unless-stopped
     environment: *airflow-env
@@ -166,7 +169,8 @@ services:
   # -------------------- AIRFLOW SCHEDULER --------------------
   airflow-scheduler:
     build:
-      context: ../airflow
+      context: ..
+      dockerfile: airflow/Dockerfile
     container_name: docuscan-airflow-scheduler
     restart: unless-stopped
     environment: *airflow-env

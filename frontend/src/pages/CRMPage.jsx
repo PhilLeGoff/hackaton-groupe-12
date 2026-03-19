@@ -14,7 +14,7 @@ const normalizeCase = (item) => ({
     item.companyName || item.company_name || item.name || "Entreprise inconnue",
   siret: item.siret || item.companySiret || "Non renseigné",
   status: normalizeStatus(item.status),
-  documents: item.documents ?? item.documentsCount ?? 0,
+  documents: typeof item.documents === "number" ? item.documents : (Array.isArray(item.documents) ? item.documents.length : (item.documentsCount ?? 0)),
   owner: item.owner || item.department || "Non assigné",
   updatedAt: item.updatedAt || item.updated_at || "Récemment",
 });
@@ -124,8 +124,8 @@ export const CRMPage = () => {
 
   return (
     <Layout
-      title="CRM documentaire"
-      subtitle="Consulte les dossiers d'entreprise, suis l'état des documents analysés et accède rapidement aux modules de contrôle et de conformité."
+      title="Dossiers fournisseurs"
+      subtitle="Liste des dossiers d'entreprise créés automatiquement par l'IA. Chaque dossier regroupe les documents d'un même fournisseur (par SIRET)."
     >
       <div className="space-y-8">
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -231,52 +231,31 @@ export const CRMPage = () => {
         )}
 
         <SectionCard>
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex w-full flex-col gap-3 md:flex-row">
-              <div className="w-full md:max-w-md">
+          <div className="space-y-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="w-full sm:max-w-md">
                 <input
                   type="text"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Rechercher une entreprise, un SIRET ou un statut..."
+                  placeholder="Rechercher une entreprise, un SIRET..."
                   className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-slate-400 focus:bg-white"
                 />
               </div>
-
-              <div className="flex flex-wrap gap-2">
-                <button
-                  className={filterBtnClass("Tous")}
-                  onClick={() => setActiveFilter("Tous")}
-                >
-                  Tous
-                </button>
-                <button
-                  className={filterBtnClass("Conforme")}
-                  onClick={() => setActiveFilter("Conforme")}
-                >
-                  Conforme
-                </button>
-                <button
-                  className={filterBtnClass("À vérifier")}
-                  onClick={() => setActiveFilter("À vérifier")}
-                >
-                  À vérifier
-                </button>
-                <button
-                  className={filterBtnClass("Non conforme")}
-                  onClick={() => setActiveFilter("Non conforme")}
-                >
-                  Non conforme
-                </button>
-              </div>
+              <button
+                onClick={() => setShowNewCase(true)}
+                className="w-full shrink-0 rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 sm:w-auto"
+              >
+                + Nouveau dossier
+              </button>
             </div>
 
-            <button
-              onClick={() => setShowNewCase(true)}
-              className="rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800"
-            >
-              + Nouveau dossier
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <button className={filterBtnClass("Tous")} onClick={() => setActiveFilter("Tous")}>Tous</button>
+              <button className={filterBtnClass("Conforme")} onClick={() => setActiveFilter("Conforme")}>Conforme</button>
+              <button className={filterBtnClass("À vérifier")} onClick={() => setActiveFilter("À vérifier")}>À vérifier</button>
+              <button className={filterBtnClass("Non conforme")} onClick={() => setActiveFilter("Non conforme")}>Non conforme</button>
+            </div>
           </div>
         </SectionCard>
 
@@ -312,16 +291,15 @@ export const CRMPage = () => {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="min-w-full border-collapse">
+              <table className="min-w-[700px] w-full border-collapse table-fixed">
                 <thead className="bg-slate-50">
                   <tr className="text-left text-sm text-slate-500">
-                    <th className="px-6 py-4 font-medium">Entreprise</th>
-                    <th className="px-6 py-4 font-medium">SIRET</th>
-                    <th className="px-6 py-4 font-medium">Équipe</th>
-                    <th className="px-6 py-4 font-medium">Documents</th>
-                    <th className="px-6 py-4 font-medium">Statut</th>
-                    <th className="px-6 py-4 font-medium">Dernière mise à jour</th>
-                    <th className="px-6 py-4 font-medium text-right">Action</th>
+                    <th className="w-[28%] px-5 py-4 font-medium">Entreprise</th>
+                    <th className="w-[18%] px-5 py-4 font-medium">SIRET</th>
+                    <th className="w-[10%] px-5 py-4 font-medium text-center">Docs</th>
+                    <th className="w-[18%] px-5 py-4 font-medium">Statut</th>
+                    <th className="w-[14%] px-5 py-4 font-medium">Mis à jour</th>
+                    <th className="w-[12%] px-5 py-4 font-medium text-right">Action</th>
                   </tr>
                 </thead>
 
@@ -331,40 +309,31 @@ export const CRMPage = () => {
                       key={item.id}
                       className="border-t border-slate-100 transition hover:bg-slate-50/70"
                     >
-                      <td className="px-6 py-5">
-                        <div>
-                          <p className="font-semibold text-slate-900">{item.companyName}</p>
-                          <p className="mt-1 text-sm text-slate-500">Dossier #{item.id}</p>
-                        </div>
+                      <td className="px-5 py-4">
+                        <p className="truncate font-semibold text-slate-900">{item.companyName}</p>
                       </td>
 
-                      <td className="px-6 py-5 text-sm text-slate-700">{item.siret}</td>
+                      <td className="px-5 py-4 text-sm text-slate-700 font-mono">{item.siret || "—"}</td>
 
-                      <td className="px-6 py-5">
-                        <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-medium text-slate-700">
-                          {item.owner}
-                        </span>
+                      <td className="px-5 py-4 text-center text-sm font-semibold text-slate-900">
+                        {item.documents}
                       </td>
 
-                      <td className="px-6 py-5 text-sm text-slate-700">
-                        <span className="font-semibold text-slate-900">{item.documents}</span> pièces
-                      </td>
-
-                      <td className="px-6 py-5">
+                      <td className="px-5 py-4">
                         <StatusBadge
                           label={item.status}
                           variant={getStatusVariant(item.status)}
                         />
                       </td>
 
-                      <td className="px-6 py-5 text-sm text-slate-500">{item.updatedAt}</td>
+                      <td className="px-5 py-4 text-sm text-slate-500 truncate">{item.updatedAt || "—"}</td>
 
-                      <td className="px-6 py-5 text-right">
+                      <td className="px-5 py-4 text-right whitespace-nowrap">
                         <Link
                           to={`/crm/${item.id}`}
                           className="inline-flex items-center rounded-2xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
                         >
-                          Voir détail
+                          Voir
                         </Link>
                       </td>
                     </tr>

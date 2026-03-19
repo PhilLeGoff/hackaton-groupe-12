@@ -50,7 +50,7 @@ export const DashboardPage = () => {
   ];
 
   return (
-    <Layout title="Suivi du pipeline" subtitle="Vue en temps réel du traitement des documents par l'IA">
+    <Layout title="Documents" subtitle="Tous les documents déposés et leur état de traitement par le pipeline IA (OCR, NER, classification, validation).">
       <div className="space-y-6">
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           {stats.map((stat) => (

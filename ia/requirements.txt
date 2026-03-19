@@ -1,11 +1,11 @@
-  transformers
-  --extra-index-url https://download.pytorch.org/whl/cpu
-  torch
-  sentencepiece
-  protobuf
-  scikit-learn
-  joblib
-  spacy
-  rapidfuzz
-  numpy
-  pypdf
+--extra-index-url https://download.pytorch.org/whl/cpu
+transformers
+torch
+sentencepiece
+protobuf
+scikit-learn
+joblib
+spacy
+rapidfuzz
+numpy
+pypdf
