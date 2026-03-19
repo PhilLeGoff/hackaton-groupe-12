@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from bson import ObjectId
 from bson.errors import InvalidId
-from config.database import compliance_collection
+from config.database import compliance_collection, case_collection
 from schemas.compliance import ComplianceCreate, ComplianceUpdate, ComplianceResponse, ComplianceListResponse
 
 _router = APIRouter(prefix="/api/compliances", tags=["compliances"])
@@ -100,5 +100,19 @@ async def update_compliance(compliance_id: str, payload: ComplianceUpdate):
 
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Compliance not found")
+
+    # Sync case status based on decision
+    comp = await compliance_collection.find_one({"_id": object_id})
+    if comp and comp.get("case_id"):
+        decision_to_status = {
+            "approve": "approved",
+            "reject": "rejected",
+            "review": "pending",
+        }
+        case_status = decision_to_status.get(payload.decision, "pending")
+        await case_collection.update_one(
+            {"_id": comp["case_id"]},
+            {"$set": {"status": case_status}}
+        )
 
     return {"message": "Compliance updated"}

@@ -25,6 +25,11 @@ export const getComplianceByCaseId = async (caseId) => {
   return response.data;
 };
 
+export const createCompliance = async (caseId, notes = "") => {
+  const response = await api.post("/api/compliances", { case_id: caseId, notes });
+  return response.data;
+};
+
 export const updateCompliance = async (id, decision) => {
   const response = await api.put(`/api/compliances/${id}`, { decision });
   return response.data;

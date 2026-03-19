@@ -9,7 +9,7 @@ const fallbackGlobalChecks = [];
 const fallbackRequiredDocuments = [];
 const fallbackComplianceAnomalies = [];
 const fallbackDecisionHistory = [];
-import { getComplianceByCaseId, updateCompliance } from "../api/compliance";
+import { getComplianceByCaseId, createCompliance, updateCompliance } from "../api/compliance";
 import { getAutofill } from "../api/cases";
 
 const getCheckVariant = (passed) => (passed ? "success" : "danger");
@@ -157,16 +157,18 @@ export const CompliancePage = () => {
   }, [caseId]);
 
   const handleDecision = async (decision) => {
-    if (!complianceData.complianceId) {
-      setError("Impossible de mettre à jour : ID de conformité manquant.");
-      return;
-    }
     try {
       setActionLoading(decision);
-      await updateCompliance(complianceData.complianceId, decision);
+      let compId = complianceData.complianceId;
+      if (!compId) {
+        const created = await createCompliance(caseId);
+        compId = created._id || created.id;
+        setComplianceData((prev) => ({ ...prev, complianceId: compId }));
+      }
+      await updateCompliance(compId, decision);
       setComplianceData((prev) => ({
         ...prev,
-        currentStatus: decision === "approved" ? "Conforme" : decision === "rejected" ? "Rejeté" : "À revoir",
+        currentStatus: decision === "approve" ? "Conforme" : decision === "reject" ? "Rejeté" : "À revoir",
       }));
     } catch (err) {
       console.error("Erreur décision:", err);
@@ -349,18 +351,18 @@ export const CompliancePage = () => {
 
                 <div className="mt-6 flex flex-col gap-3">
                   <button
-                    onClick={() => handleDecision("approved")}
+                    onClick={() => handleDecision("approve")}
                     disabled={!!actionLoading}
                     className="rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
                   >
-                    {actionLoading === "approved" ? "Validation..." : "Valider le dossier"}
+                    {actionLoading === "approve" ? "Validation..." : "Valider le dossier"}
                   </button>
                   <button
-                    onClick={() => handleDecision("rejected")}
+                    onClick={() => handleDecision("reject")}
                     disabled={!!actionLoading}
                     className="rounded-2xl bg-rose-600 px-4 py-3 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-50"
                   >
-                    {actionLoading === "rejected" ? "Rejet..." : "Rejeter le dossier"}
+                    {actionLoading === "reject" ? "Rejet..." : "Rejeter le dossier"}
                   </button>
                   <button
                     onClick={() => handleDecision("review")}
