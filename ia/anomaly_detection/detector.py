@@ -23,8 +23,11 @@ def validate(
 
     _check_missing_fields(anomalies, document_type, details)
     _check_siret_format(anomalies, details)
+    _check_siren_format(anomalies, details)
     _check_amounts_coherence(anomalies, details)
     _check_iban_format(anomalies, details)
+    _check_bic_format(anomalies, details)
+    _check_rib_key(anomalies, details)
     _check_dates(anomalies, details)
     _check_vat_siret_coherence(anomalies, details)
     _check_date_logic(anomalies, details)
@@ -87,6 +90,68 @@ def _luhn_check(digits: str) -> bool:
                 n -= 9
         total += n
     return total % 10 == 0
+
+
+def _check_siren_format(anomalies: list[dict], details: dict):
+    """Validate SIREN numbers (9 digits, Luhn checksum)."""
+    siren = details.get("siren")
+    if not siren:
+        return
+    digits = re.sub(r"\s+", "", siren)
+    if not re.fullmatch(r"\d{9}", digits):
+        anomalies.append({
+            "field": "siren",
+            "message": f"SIREN invalide ({siren}) : doit contenir 9 chiffres",
+            "level": "error",
+        })
+        return
+    if not _luhn_check(digits):
+        anomalies.append({
+            "field": "siren",
+            "message": f"SIREN invalide ({siren}) : checksum Luhn incorrect",
+            "level": "error",
+        })
+
+
+def _check_bic_format(anomalies: list[dict], details: dict):
+    """Validate BIC/SWIFT code format (8 or 11 alphanumeric chars)."""
+    bic = details.get("bic")
+    if not bic:
+        return
+    bic_clean = re.sub(r"\s+", "", bic).upper()
+    if not re.fullmatch(r"[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?", bic_clean):
+        anomalies.append({
+            "field": "bic",
+            "message": f"Format BIC invalide ({bic}) : attendu 8 ou 11 caracteres (ex: BNPAFRPP)",
+            "level": "error",
+        })
+
+
+def _check_rib_key(anomalies: list[dict], details: dict):
+    """Validate RIB key using mod 97 on bank_code + branch_code + account_number + key."""
+    bank_code = details.get("bank_code")
+    branch_code = details.get("branch_code")
+    account_number = details.get("account_number")
+    rib_key = details.get("rib_key")
+    if not (bank_code and branch_code and account_number and rib_key):
+        return
+    try:
+        # Replace letters in account_number: A=1, B=2, ..., Z=26 (mod 9 + 1 for digits)
+        account_digits = ""
+        for ch in account_number.upper():
+            if ch.isdigit():
+                account_digits += ch
+            elif ch.isalpha():
+                account_digits += str((ord(ch) - ord("A") + 1) % 9 + 1)
+        combined = int(bank_code + branch_code + account_digits + rib_key)
+        if combined % 97 != 0:
+            anomalies.append({
+                "field": "rib_key",
+                "message": f"Cle RIB invalide ({rib_key}) : verification mod 97 echouee",
+                "level": "error",
+            })
+    except (ValueError, TypeError):
+        pass
 
 
 def _check_amounts_coherence(anomalies: list[dict], details: dict):

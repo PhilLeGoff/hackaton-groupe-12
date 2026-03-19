@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from pathlib import Path
 
 from ia.nlp.ner import FIELD_DEFINITIONS
@@ -229,14 +230,28 @@ def _compute_confidence(document_type: str, text: str) -> float:
     if not expected:
         return 0.5
 
+    text_lower = text.lower()
     found = 0
     for field_name in expected:
         field_def = FIELD_DEFINITIONS.get(field_name)
         if not field_def:
             continue
+        # Check if label appears in text
         label = field_def["label"]
-        if label.lower() in text.lower():
+        if label.lower() in text_lower:
             found += 1
+            continue
+        # Also check if any regex pattern matches
+        for pattern in field_def.get("patterns", []):
+            if re.search(pattern, text, flags=re.IGNORECASE | re.MULTILINE):
+                found += 1
+                break
+
+    # Also count keyword matches from DOCUMENT_RULES
+    rule_markers = DOCUMENT_RULES.get(document_type, [])
+    text_upper = text.upper()
+    rule_hits = sum(1 for m in rule_markers if m.upper() in text_upper)
+    rule_bonus = min(0.15, rule_hits * 0.05) if rule_markers else 0
 
     ratio = found / max(len(expected), 1)
-    return round(max(0.35, min(0.99, ratio)), 2)
+    return round(max(0.35, min(0.99, ratio + rule_bonus)), 2)

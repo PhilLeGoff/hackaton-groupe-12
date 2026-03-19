@@ -178,7 +178,10 @@ FIELD_DEFINITIONS = {
     },
     "iban": {
         "label": "IBAN",
-        "patterns": [r"IBAN\s*[:\-]?\s*([A-Z]{2}[0-9A-Z ]{13,34})"],
+        "patterns": [
+            r"IBAN\s*[:\-]?\s*([A-Z]{2}\d{2}[\s]?[A-Z0-9]{4}[\s]?[A-Z0-9]{4}[\s]?[A-Z0-9]{4}[\s]?[A-Z0-9]{4}[\s]?[A-Z0-9]{4}[\s]?[A-Z0-9]{0,4})",
+            r"IBAN\s*[:\-]?\s*([A-Z]{2}[0-9A-Z ]{13,34})",
+        ],
     },
     "bic": {
         "label": "BIC",
@@ -482,10 +485,18 @@ def _enrich_with_spacy(text: str, entities: dict):
             if not entities.get("dirigeant"):
                 per_text = ent.text.strip()
                 per_lower = per_text.lower()
-                # Reject common false positives and short strings
+                # Reject common false positives, short strings, and garbage
+                has_digit = any(c.isdigit() for c in per_text)
+                bad_start = per_lower.startswith((
+                    "facture", "montant", "numero", "total", "date",
+                    "attestation", "att-", "urssaf", "siret", "iban",
+                    "code", "adresse", "greffe", "tribunal",
+                ))
                 if (per_lower not in _SPACY_ORG_BLACKLIST
                         and len(per_text) > 3
-                        and not per_lower.startswith(("facture", "montant", "numero", "total"))):
+                        and len(per_text) < 60
+                        and not has_digit
+                        and not bad_start):
                     entities["dirigeant"] = per_text
         elif ent.label_ == "LOC":
             # Fill address if not found

@@ -1,0 +1,36 @@
+# Git
+.git
+.gitignore
+
+# Dependencies (installed in container)
+node_modules
+__pycache__
+*.pyc
+.venv
+venv
+
+# IDE
+.vscode
+.idea
+*.swp
+
+# Docker (avoid recursive context)
+docker/
+
+# Data (large files, not needed in build)
+data/generated
+data/datasets
+data/templates
+
+# Docs
+*.md
+!README.md
+
+# Tests artifacts
+.pytest_cache
+.coverage
+htmlcov
+
+# OS
+.DS_Store
+Thumbs.db

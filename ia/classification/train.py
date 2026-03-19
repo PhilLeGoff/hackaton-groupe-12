@@ -29,15 +29,16 @@ DEFAULT_OUTPUT_DIR = Path(__file__).resolve().parent / "model"
 
 FOLDER_TO_LABEL = {
     "factures": "Facture",
+    "devis": "Devis",
+    "ribs": "RIB",
+    "urssaf": "Attestation",
+    "attestations_urssaf": "Attestation",
+    "kbis": "KBIS",
+    # Also support pdfs/ subdirectory structure
     "pdfs/devis": "Devis",
     "pdfs/ribs": "RIB",
     "pdfs/attestations_urssaf": "Attestation",
     "pdfs/kbis": "KBIS",
-    # Also support flat structure
-    "devis": "Devis",
-    "ribs": "RIB",
-    "attestations_urssaf": "Attestation",
-    "kbis": "KBIS",
 }
 
 def load_dataset(data_dir: Path) -> tuple[list[str], list[str]]:
