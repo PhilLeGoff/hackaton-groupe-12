@@ -32,9 +32,6 @@ def validate(
     _check_vat_siret_coherence(anomalies, details)
     _check_date_logic(anomalies, details)
 
-    if collection is not None:
-        _check_duplicates(anomalies, document_id, details, collection)
-
     return {
         "is_valid": len(anomalies) == 0,
         "anomalies": anomalies,
@@ -189,10 +186,11 @@ def _check_amounts_coherence(anomalies: list[dict], details: dict):
 
 
 def _parse_amount(value: str) -> float | None:
-    """Parse a French-formatted amount like '1 234,56' into a float."""
+    """Parse a French-formatted amount like '1 234,56 EUR' into a float."""
     try:
         cleaned = re.sub(r"\s+", "", value).replace(",", ".")
-        return float(cleaned)
+        cleaned = re.sub(r"[^\d.]", "", cleaned)
+        return float(cleaned) if cleaned else None
     except (ValueError, AttributeError):
         return None
 
@@ -299,6 +297,20 @@ def _check_date_logic(anomalies: list[dict], details: dict):
             "level": "error",
         })
 
+    # Check if expiry/valid_until date is in the past
+    if expiry and expiry < today:
+        anomalies.append({
+            "field": "expiry_date",
+            "message": f"Document expire depuis le {details.get('expiry_date', expiry.isoformat())}",
+            "level": "error",
+        })
+    if valid and valid < today:
+        anomalies.append({
+            "field": "valid_until",
+            "message": f"Document expire depuis le {details.get('valid_until', valid.isoformat())}",
+            "level": "error",
+        })
+
 
 def _parse_date(value: str | None) -> date | None:
     """Parse YYYY-MM-DD string to date object."""
@@ -345,33 +357,6 @@ def validate_cross_documents(documents: list[dict]) -> dict:
             "level": "error",
         })
 
-    # Check for expired URSSAF attestations
-    today = date.today()
-    for doc in documents:
-        doc_type = doc.get("type") or doc.get("document_type") or ""
-        if "urssaf" not in doc_type.lower() and "attestation" not in doc_type.lower():
-            continue
-        ents = doc.get("entities") or doc.get("extracted_fields") or {}
-        if isinstance(ents, list):
-            ents = {f.get("label", f.get("field", "")): f.get("value") for f in ents}
-        expiry = ents.get("expiry_date") or ents.get("expiration_date") or ents.get("valid_until")
-        if expiry:
-            exp_date = _parse_date(expiry)
-            if exp_date and exp_date < today:
-                anomalies.append({
-                    "field": "urssaf_expiry",
-                    "message": f"Attestation URSSAF expiree depuis le {expiry}",
-                    "level": "error",
-                })
-            elif exp_date:
-                days_left = (exp_date - today).days
-                if days_left < 30:
-                    anomalies.append({
-                        "field": "urssaf_expiry",
-                        "message": f"Attestation URSSAF expire bientot ({days_left} jours restants, le {expiry})",
-                        "level": "warning",
-                    })
-
     # Check VAT coherence across documents
     vats = {}
     for doc in documents:
@@ -398,25 +383,3 @@ def validate_cross_documents(documents: list[dict]) -> dict:
     }
 
 
-def _check_duplicates(
-    anomalies: list[dict],
-    document_id: str,
-    details: dict,
-    collection,
-):
-    """Check for duplicate SIRET in existing documents."""
-    siret = details.get("siret") or details.get("supplier_siret")
-    if not siret:
-        return
-    try:
-        existing = collection.find_one(
-            {"entities.siret": siret, "_id": {"$ne": document_id}},
-        )
-        if existing:
-            anomalies.append({
-                "field": "siret",
-                "message": f"SIRET {siret} deja present dans un autre document",
-                "level": "info",
-            })
-    except Exception:
-        pass

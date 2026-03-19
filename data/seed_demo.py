@@ -1,8 +1,8 @@
 """Seed 3 realistic supplier cases with documents covering all use cases.
 
-Dossier 1: BTP — all 5 doc types, all valid (PDF + PNG + JPG)
-Dossier 2: IT  — facture + RIB + KBIS, valid (PDF)
-Dossier 3: Restauration — facture with amount errors + expired URSSAF (anomalies demo)
+Dossier 1: BTP — 5 doc types, tout conforme (PDF + PNG + JPG)
+Dossier 2: Restauration — anomalies per-document (montants faux + URSSAF expiree)
+Dossier 3: Transport — anomalies inter-documents (SIRET different entre facture et KBIS)
 
 Run: docker exec -e API_URL=http://localhost:8000 docuscan-backend python /app/data/seed_demo.py
 """
@@ -80,15 +80,15 @@ def upload(data, filename, content_type):
 
 
 # ======================================================================
-# DOSSIER 1 — Durand BTP (all doc types, all valid, 3 formats)
-# SIRET valid Luhn: 44306184100025 -> check
+# DOSSIER 1 — Durand BTP (tout conforme, 5 types, 3 formats)
+# SIREN 443061841 Luhn OK | SIRET 44306184110004 Luhn OK | TVA key 64
 # ======================================================================
 
 D1 = {
     "name": "Durand Construction SARL",
-    "siret": "44306184100025",
+    "siret": "44306184110004",
     "siren": "443061841",
-    "vat": "FR40443061841",
+    "vat": "FR64443061841",
     "iban": "FR76 3000 6000 0112 3456 7890 189",
     "bic": "BNPAFRPP",
     "address": "12 rue des Batisseurs, 75011 Paris",
@@ -221,112 +221,24 @@ Le present extrait a ete delivre le 5 mars 2026.
 
 
 # ======================================================================
-# DOSSIER 2 — TechNova IT (facture + RIB + KBIS, PDF only)
-# SIRET valid Luhn: 90255807400012
+# DOSSIER 2 — Jardins de Provence (anomalies per-document)
+# SIREN 537842171 Luhn OK | SIRET 53784217110001 Luhn OK | TVA key 07
+# Anomalies: montants HT+TVA!=TTC sur facture + URSSAF expiree
 # ======================================================================
 
 D2 = {
-    "name": "TechNova Solutions SAS",
-    "siret": "90255807400012",
-    "siren": "902558074",
-    "vat": "FR28902558074",
-    "iban": "FR76 1820 6000 5531 2890 0128 072",
-    "bic": "AGRIFRPP",
-    "address": "8 avenue de l'Innovation, 69003 Lyon",
-    "naf": "6201Z",
-}
-
-D2_FACTURE = lambda s: f"""FACTURE
-
-Numero de facture : TN-2026-0455
-Date d'emission : 2026-03-10
-Date d'echeance : 2026-04-10
-
-FOURNISSEUR
-{s['name']}
-{s['address']}
-SIRET : {s['siret']}
-TVA intracommunautaire : {s['vat']}
-
-CLIENT
-Groupe Casino
-1 Esplanade de France, 42000 Saint-Etienne
-SIRET client : 55450117600046
-
-LIGNES DE FACTURATION
-
-Description                                  Quantite    Prix unitaire    Montant
-Developpement API microservices                 120h         95,00 EUR   11 400,00 EUR
-Integration plateforme cloud AWS                 40h        110,00 EUR    4 400,00 EUR
-Licence logicielle annuelle                       1       2 500,00 EUR    2 500,00 EUR
-
-Montant HT : 18 300,00 EUR
-TVA (20,00%) : 3 660,00 EUR
-TOTAL TTC : 21 960,00 EUR
-
-Paiement par virement sous 30 jours.
-IBAN : {s['iban']}
-BIC : {s['bic']}
-"""
-
-D2_RIB = lambda s: f"""RELEVE D'IDENTITE BANCAIRE
-
-Titulaire du compte : {s['name']}
-Adresse : {s['address']}
-
-Banque : Credit Agricole
-Code banque : 18206
-Code guichet : 00055
-Numero de compte : 31289001280
-Cle RIB : 72
-
-IBAN : {s['iban']}
-BIC : {s['bic']}
-
-SIRET : {s['siret']}
-"""
-
-D2_KBIS = lambda s: f"""EXTRAIT KBIS
-
-Greffe : Greffe du Tribunal de Commerce de Lyon
-RCS : RCS Lyon 902 558 074
-Date d'immatriculation : 2020-09-01
-
-Denomination : {s['name']}
-Forme juridique : SAS
-Capital social : 120 000 EUR
-Adresse du siege : {s['address']}
-
-SIRET : {s['siret']}
-SIREN : {s['siren']}
-Code NAF : {s['naf']}
-
-Dirigeant : Sophie Martin
-
-Activite : Conseil et developpement en systemes informatiques.
-
-Le present extrait a ete delivre le 8 mars 2026.
-"""
-
-
-# ======================================================================
-# DOSSIER 3 — Provence Traiteur (anomalies: montants incohérents + URSSAF expiré)
-# SIRET valid Luhn: 53784217600019
-# ======================================================================
-
-D3 = {
     "name": "Les Jardins de Provence EURL",
-    "siret": "53784217600019",
-    "siren": "537842176",
-    "vat": "FR81537842176",
-    "iban": "FR76 4255 9000 4141 2000 5670 146",
+    "siret": "53784217110001",
+    "siren": "537842171",
+    "vat": "FR07537842171",
+    "iban": "FR73 4255 9000 4141 2000 5670 146",
     "bic": "CABORFRP",
     "address": "Route de Cavaillon, 84300 Les Taillades",
     "naf": "5610A",
 }
 
-# Anomalie: HT + TVA != TTC (erreur volontaire)
-D3_FACTURE = lambda s: f"""FACTURE
+# Anomalie: HT + TVA != TTC (9970 + 1994 = 11964 != 12500)
+D2_FACTURE = lambda s: f"""FACTURE
 
 Numero de facture : JP-2026-0078
 Date d'emission : 2026-03-15
@@ -356,8 +268,8 @@ TOTAL TTC : 12 500,00 EUR
 Reglement par virement a reception.
 """
 
-# Anomalie: URSSAF expiree (date dans le passe)
-D3_URSSAF = lambda s: f"""ATTESTATION DE VIGILANCE
+# Anomalie: URSSAF expiree (2025-09-01 < today)
+D2_URSSAF = lambda s: f"""ATTESTATION DE VIGILANCE
 
 Organisme : URSSAF Provence-Alpes-Cote d'Azur
 Numero d'attestation : ATT-2025-JP-00891
@@ -378,7 +290,7 @@ Nombre de salaries declares : 8
 Fait a Marseille, le 1er mars 2025.
 """
 
-D3_RIB = lambda s: f"""RELEVE D'IDENTITE BANCAIRE
+D2_RIB = lambda s: f"""RELEVE D'IDENTITE BANCAIRE
 
 Titulaire du compte : {s['name']}
 Adresse : {s['address']}
@@ -387,12 +299,137 @@ Banque : Credit Agricole Provence
 Code banque : 42559
 Code guichet : 00041
 Numero de compte : 41200056701
-Cle RIB : 46
+Cle RIB : 89
 
 IBAN : {s['iban']}
 BIC : {s['bic']}
 
 SIRET : {s['siret']}
+"""
+
+
+# ======================================================================
+# DOSSIER 3 — TransExpress (anomalies inter-documents)
+# Facture + RIB utilisent SIRET A, KBIS utilise SIRET B (different!)
+# => cross-doc: "SIRET different entre documents du meme dossier"
+# Chaque document est individuellement valide
+# SIREN A: 812345676 | SIRET A: 81234567610008 | TVA A: FR19812345676
+# SIREN B: 812345684 | SIRET B: 81234568410002 | TVA B: FR43812345684
+# ======================================================================
+
+D3_MAIN = {
+    "name": "TransExpress Logistique SAS",
+    "siret": "81234567610008",
+    "siren": "812345676",
+    "vat": "FR19812345676",
+    "iban": "FR73 2004 1000 0134 5678 9012 345",
+    "bic": "PSSTFRPP",
+    "address": "45 zone industrielle des Pins, 13400 Aubagne",
+    "naf": "4941A",
+}
+
+# KBIS avec un SIRET different (ancien etablissement / erreur)
+D3_KBIS_DATA = {
+    "name": "TransExpress Logistique SAS",
+    "siret": "81234568410002",
+    "siren": "812345684",
+    "vat": "FR43812345684",
+    "address": "45 zone industrielle des Pins, 13400 Aubagne",
+    "naf": "4941A",
+}
+
+D3_FACTURE = lambda s: f"""FACTURE
+
+Numero de facture : TE-2026-0192
+Date d'emission : 2026-03-12
+Date d'echeance : 2026-04-12
+
+FOURNISSEUR
+{s['name']}
+{s['address']}
+SIRET : {s['siret']}
+TVA intracommunautaire : {s['vat']}
+
+CLIENT
+Leroy Merlin SAS
+Rue Chanzy, 59260 Lezennes
+SIRET client : 38474058200018
+
+LIGNES DE FACTURATION
+
+Description                              Quantite    Prix unitaire    Montant
+Transport palettes 20T Aubagne-Paris         3        1 850,00 EUR    5 550,00 EUR
+Manutention et chargement                    3          320,00 EUR      960,00 EUR
+Assurance marchandises                       1          180,00 EUR      180,00 EUR
+
+Montant HT : 6 690,00 EUR
+TVA (20,00%) : 1 338,00 EUR
+TOTAL TTC : 8 028,00 EUR
+
+Paiement par virement sous 30 jours.
+IBAN : {s['iban']}
+BIC : {s['bic']}
+"""
+
+D3_RIB = lambda s: f"""RELEVE D'IDENTITE BANCAIRE
+
+Titulaire du compte : {s['name']}
+Adresse : {s['address']}
+
+Banque : La Banque Postale
+Code banque : 20041
+Code guichet : 00001
+Numero de compte : 34567890123
+Cle RIB : 88
+
+IBAN : {s['iban']}
+BIC : {s['bic']}
+
+SIRET : {s['siret']}
+"""
+
+# KBIS avec SIRET DIFFERENT (812345684 au lieu de 812345676)
+D3_KBIS = lambda s: f"""EXTRAIT KBIS
+
+Greffe : Greffe du Tribunal de Commerce de Marseille
+RCS : RCS Marseille 812 345 684
+Date d'immatriculation : 2019-06-15
+
+Denomination : {s['name']}
+Forme juridique : SAS
+Capital social : 200 000 EUR
+Adresse du siege : {s['address']}
+
+SIRET : {s['siret']}
+SIREN : {s['siren']}
+Code NAF : {s['naf']}
+
+Dirigeant : Marc Lefebvre
+
+Activite : Transport routier de marchandises.
+
+Le present extrait a ete delivre le 2 mars 2026.
+"""
+
+D3_URSSAF = lambda s: f"""ATTESTATION DE VIGILANCE
+
+Organisme : URSSAF Provence-Alpes-Cote d'Azur
+Numero d'attestation : ATT-2026-TE-00467
+
+Date d'emission : 2026-02-01
+Date d'expiration : 2026-08-01
+
+Entreprise : {s['name']}
+SIRET : {s['siret']}
+Code NAF : {s['naf']}
+Adresse : {s['address']}
+
+La presente attestation certifie que l'entreprise mentionnee ci-dessus
+est a jour de ses obligations declaratives et de paiement.
+
+Nombre de salaries declares : 35
+
+Fait a Marseille, le 1er fevrier 2026.
 """
 
 
@@ -405,9 +442,9 @@ def main():
     print("SEED DEMO — 3 dossiers fournisseurs")
     print("=" * 65)
 
-    # --- Dossier 1: BTP — 5 docs, 3 formats ---
+    # --- Dossier 1: BTP — tout conforme, 5 docs, 3 formats ---
     print(f"\n  Dossier 1: {D1['name']}")
-    print(f"  SIRET: {D1['siret']} | 5 documents | 3 formats")
+    print(f"  SIRET: {D1['siret']} | 5 documents | tout conforme")
     print()
     send(D1_FACTURE(D1), "Facture_Durand_FACT-2026-0312.pdf", to_pdf)
     send(D1_DEVIS(D1), "Devis_Durand_DEV-2026-0089.png", to_png)
@@ -417,36 +454,41 @@ def main():
 
     time.sleep(1)
 
-    # --- Dossier 2: IT — 3 docs, PDF ---
+    # --- Dossier 2: Restauration — anomalies per-document ---
     print(f"\n  Dossier 2: {D2['name']}")
-    print(f"  SIRET: {D2['siret']} | 3 documents | PDF")
+    print(f"  SIRET: {D2['siret']} | 3 documents | anomalies per-document")
     print()
-    send(D2_FACTURE(D2), "Facture_TechNova_TN-2026-0455.pdf", to_pdf)
-    send(D2_RIB(D2), "RIB_TechNova_CreditAgricole.pdf", to_pdf)
-    send(D2_KBIS(D2), "Kbis_TechNova_Lyon.pdf", to_pdf)
+    send(D2_FACTURE(D2), "Facture_JardinsProvence_JP-2026-0078.jpg", to_jpg)
+    send(D2_URSSAF(D2), "Attestation_URSSAF_JardinsProvence_2025.png", to_png)
+    send(D2_RIB(D2), "RIB_JardinsProvence_CA.pdf", to_pdf)
 
     time.sleep(1)
 
-    # --- Dossier 3: Restauration — anomalies ---
-    print(f"\n  Dossier 3: {D3['name']}")
-    print(f"  SIRET: {D3['siret']} | 3 documents | anomalies attendues")
+    # --- Dossier 3: Transport — anomalies inter-documents ---
+    print(f"\n  Dossier 3: {D3_MAIN['name']}")
+    print(f"  SIRET facture/RIB: {D3_MAIN['siret']} | SIRET KBIS: {D3_KBIS_DATA['siret']}")
+    print(f"  4 documents | anomalie inter-document (SIRET different)")
     print()
-    send(D3_FACTURE(D3), "Facture_JardinsProvence_JP-2026-0078.jpg", to_jpg)
-    send(D3_URSSAF(D3), "Attestation_URSSAF_JardinsProvence_2025.png", to_png)
-    send(D3_RIB(D3), "RIB_JardinsProvence_CA.pdf", to_pdf)
+    send(D3_FACTURE(D3_MAIN), "Facture_TransExpress_TE-2026-0192.pdf", to_pdf)
+    send(D3_RIB(D3_MAIN), "RIB_TransExpress_BanquePostale.pdf", to_pdf)
+    send(D3_KBIS(D3_KBIS_DATA), "Kbis_TransExpress_Marseille.pdf", to_pdf)
+    send(D3_URSSAF(D3_MAIN), "Attestation_URSSAF_TransExpress_2026.png", to_png)
 
     print(f"\n{'=' * 65}")
-    print(f"11 documents uploades pour 3 dossiers fournisseurs")
+    print(f"12 documents uploades pour 3 dossiers fournisseurs")
     print()
-    print(f"  Dossier 1 (BTP)          : facture PDF + devis PNG + RIB JPG + URSSAF PDF + KBIS PDF")
-    print(f"  Dossier 2 (IT)           : facture PDF + RIB PDF + KBIS PDF")
-    print(f"  Dossier 3 (Restauration) : facture JPG (montants faux) + URSSAF PNG (expiree) + RIB PDF")
+    print(f"  Dossier 1 (BTP)          : 5 docs, tout conforme")
+    print(f"  Dossier 2 (Restauration) : 3 docs, anomalies per-document")
+    print(f"    - Facture: montants HT+TVA != TTC")
+    print(f"    - URSSAF: attestation expiree (2025-09-01)")
+    print(f"  Dossier 3 (Transport)    : 4 docs, anomalie inter-document")
+    print(f"    - SIRET facture/RIB != SIRET KBIS")
     print(f"\nCas d'usage couverts:")
     print(f"  - 5 types de documents (Facture, Devis, RIB, Attestation, KBIS)")
     print(f"  - 3 formats (PDF, PNG, JPG)")
-    print(f"  - Dossier complet sans anomalie")
-    print(f"  - Dossier partiel sans anomalie")
-    print(f"  - Dossier avec anomalies (montants HT+TVA!=TTC, URSSAF expiree)")
+    print(f"  - Dossier complet conforme")
+    print(f"  - Dossier avec anomalies per-document")
+    print(f"  - Dossier avec anomalies inter-documents")
     print(f"  - Auto-creation de dossier par SIRET")
     print(f"{'=' * 65}")
 

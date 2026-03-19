@@ -440,6 +440,16 @@ def _extract_all_fields(text: str) -> dict:
     if entities.get("siren"):
         entities["siren"] = re.sub(r"\s+", "", entities["siren"])
 
+    # Normalize TVA: fix OCR O→0, I→1, S→5 in the digit part (FR + key + SIREN)
+    for vat_key in ("vat_number", "supplier_vat_number", "customer_vat_number"):
+        vat = entities.get(vat_key)
+        if vat and vat.upper().startswith("FR"):
+            digits_part = vat[2:]
+            digits_part = digits_part.replace("O", "0").replace("o", "0")
+            digits_part = digits_part.replace("I", "1").replace("l", "1")
+            digits_part = digits_part.replace("S", "5").replace("s", "5")
+            entities[vat_key] = "FR" + digits_part
+
     # Normalize IBAN (keep formatted with spaces)
     if entities.get("iban"):
         entities["iban"] = re.sub(r"\s+", " ", entities["iban"]).strip()
@@ -487,15 +497,22 @@ def _enrich_with_spacy(text: str, entities: dict):
                 per_lower = per_text.lower()
                 # Reject common false positives, short strings, and garbage
                 has_digit = any(c.isdigit() for c in per_text)
+                has_newline = "\n" in per_text
                 bad_start = per_lower.startswith((
                     "facture", "montant", "numero", "total", "date",
                     "attestation", "att-", "urssaf", "siret", "iban",
                     "code", "adresse", "greffe", "tribunal",
+                    "fourniture", "renovation", "main", "service",
+                    "location", "developpement", "integration",
+                    "licence", "prestation", "demolition",
+                    "construction", "plomberie", "paiement",
+                    "eur", "personnel", "reglement", "virement",
                 ))
                 if (per_lower not in _SPACY_ORG_BLACKLIST
                         and len(per_text) > 3
                         and len(per_text) < 60
                         and not has_digit
+                        and not has_newline
                         and not bad_start):
                     entities["dirigeant"] = per_text
         elif ent.label_ == "LOC":
