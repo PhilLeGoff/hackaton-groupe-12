@@ -302,14 +302,16 @@ with DAG(
     start_date=datetime(2026, 1, 1),
     catchup=False,
     is_paused_upon_creation=False,
+    max_active_runs=3,
+    max_active_tasks=2,
     tags=["docuscan", "pipeline", "ocr", "nlp"],
 ) as dag:
 
     t1 = PythonOperator(task_id="start_processing", python_callable=start_processing)
     t2 = PythonOperator(task_id="run_ocr", python_callable=run_ocr)
     t3 = PythonOperator(task_id="store_clean_hdfs", python_callable=store_clean_hdfs)
-    t4 = PythonOperator(task_id="extract_entities", python_callable=extract_entities)
-    t5 = PythonOperator(task_id="classify_document", python_callable=classify_document)
+    t4 = PythonOperator(task_id="extract_entities", python_callable=extract_entities, pool="ml_pool")
+    t5 = PythonOperator(task_id="classify_document", python_callable=classify_document, pool="ml_pool")
     t6 = PythonOperator(task_id="validate_coherence", python_callable=validate_coherence)
     t7 = PythonOperator(task_id="store_curated_hdfs", python_callable=store_curated_hdfs)
     t8 = PythonOperator(task_id="sync_mongodb", python_callable=sync_mongodb)

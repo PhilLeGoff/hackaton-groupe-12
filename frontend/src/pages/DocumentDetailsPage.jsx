@@ -264,7 +264,16 @@ export const DocumentDetailsPage = () => {
           const fname = documentResponse.filename || documentResponse.fileName || documentResponse.name || "";
           const ftype = getFileType(fname);
           if (ftype === "pdf" || ftype === "image") {
-            setPreviewUrl(`${api.defaults.baseURL}/api/documents/${documentId}/download`);
+            try {
+              const dlResp = await api.get(`/api/documents/${documentId}/download`, {
+                responseType: "blob",
+              });
+              const blob = new Blob([dlResp.data], { type: dlResp.headers["content-type"] });
+              setPreviewUrl(URL.createObjectURL(blob));
+            } catch {
+              setPreviewUrl(null);
+              setPreviewError(true);
+            }
           }
         } else {
           setDocumentData(fallbackDocumentData);
@@ -283,6 +292,9 @@ export const DocumentDetailsPage = () => {
     };
 
     loadDocument();
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
   }, [documentId]);
 
   const handleDownload = async () => {
