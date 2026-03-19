@@ -52,7 +52,8 @@ data/datasets/*.json
 data/datasets/*.pdf
 data/generated/
 ia/classification/model/
-
+test-docs/*
+test-docs/*/*
 # HDFS / Hadoop
 *.name
 *.data

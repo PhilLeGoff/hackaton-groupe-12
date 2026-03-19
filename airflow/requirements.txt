@@ -1,13 +1,2 @@
 pymongo==4.7.3
 requests==2.32.3
-pypdf
-transformers
---extra-index-url https://download.pytorch.org/whl/cpu
-torch
-sentencepiece
-protobuf
-scikit-learn
-joblib
-spacy
-rapidfuzz
-numpy
